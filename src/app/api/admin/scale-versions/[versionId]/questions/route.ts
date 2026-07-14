@@ -7,7 +7,30 @@ import { assertScaleVersionEditable } from "@/lib/lock";
 
 type Params = { params: Promise<{ versionId: string }> };
 
-// 문항 추가 (문서 6.3). 선택지 미제공 시 척도 범위로 기본 선택지 생성.
+function defaultOptionsForType(
+  type: string,
+  min: number,
+  max: number,
+  provided?: Array<{ value: number; label: string; displayOrder?: number }>,
+) {
+  if (provided && provided.length > 0) return provided;
+  if (type === "LIKERT") {
+    return Array.from({ length: max - min + 1 }, (_, i) => ({
+      value: min + i,
+      label: String(min + i),
+      displayOrder: i + 1,
+    }));
+  }
+  if (type === "SINGLE" || type === "MULTIPLE") {
+    return [
+      { value: 1, label: "옵션 1", displayOrder: 1 },
+      { value: 2, label: "옵션 2", displayOrder: 2 },
+    ];
+  }
+  return [];
+}
+
+// 문항 추가. 유형별 기본 선택지 자동 생성.
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   await requireStaff();
   const { versionId } = await params;
@@ -33,15 +56,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const count = await prisma.question.count({ where: { scaleVersionId: versionId } });
   const min = input.minScore ?? version.minScore;
   const max = input.maxScore ?? version.maxScore;
-
-  const defaultOptions =
-    input.options && input.options.length > 0
-      ? input.options
-      : Array.from({ length: max - min + 1 }, (_, i) => ({
-          value: min + i,
-          label: String(min + i),
-          displayOrder: i + 1,
-        }));
+  const opts = defaultOptionsForType(input.type, min, max, input.options);
 
   const question = await prisma.question.create({
     data: {
@@ -49,13 +64,17 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       subfactorId: input.subfactorId ?? null,
       code: input.code,
       content: input.content,
-      isReverse: input.isReverse,
+      type: input.type,
+      isReverse: input.type === "LIKERT" ? input.isReverse : false,
       isActive: input.isActive,
+      isRequired: input.isRequired,
       displayOrder: input.displayOrder ?? count + 1,
       minScore: input.minScore ?? null,
       maxScore: input.maxScore ?? null,
+      minSelect: input.type === "MULTIPLE" ? (input.minSelect ?? null) : null,
+      maxSelect: input.type === "MULTIPLE" ? (input.maxSelect ?? null) : null,
       options: {
-        create: defaultOptions.map((o, idx) => ({
+        create: opts.map((o, idx) => ({
           value: o.value,
           label: o.label,
           displayOrder: o.displayOrder ?? idx + 1,

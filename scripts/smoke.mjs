@@ -50,18 +50,23 @@ console.log("  publicId =", publicId);
 // 2. 응답자 회원가입
 const email = `test_${Date.now()}@example.com`;
 const reg = await call(resp, "POST", "/api/auth/register", {
+  name: "테스트유저",
   email,
   password: "Test1234!",
   passwordConfirm: "Test1234!",
   birthYear: 1998,
+  birthMonth: 3,
+  birthDay: 15,
   gender: "FEMALE",
+  phone: "010-1234-5678",
+  affiliation: "테스트대학",
   consentPrivacy: true,
   consentResearch: true,
 });
 assert(reg.data.ok, "응답자 회원가입 + 자동 로그인");
 
 // 3. 설문 시작
-const start = await call(resp, "POST", `/api/public/surveys/${publicId}/start`);
+const start = await call(resp, "POST", `/api/public/surveys/${publicId}/start`, {});
 assert(start.data.ok, "설문 시작(문항 순서 생성)");
 const responseId = start.data.data.responseId;
 

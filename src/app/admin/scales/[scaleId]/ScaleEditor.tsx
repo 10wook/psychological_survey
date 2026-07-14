@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import type { ScaleDTO, ScaleVersionDTO } from "@/lib/types";
+import type { ScaleDTO, ScaleVersionDTO, QuestionType } from "@/lib/types";
 import {
   Alert,
   Badge,
@@ -334,7 +334,14 @@ function SubfactorManager({
   );
 }
 
-// --- 문항 관리 -------------------------------------------------------------
+// --- 문항 관리 (구글폼식 유형 선택) -----------------------------------------
+const QUESTION_TYPE_LABEL: Record<string, string> = {
+  LIKERT: "리커트 척도",
+  SINGLE: "단일 선택 (라디오)",
+  MULTIPLE: "다중 선택 (체크박스)",
+  TEXT: "줄글",
+};
+
 function QuestionManager({
   version,
   editable,
@@ -346,7 +353,27 @@ function QuestionManager({
   onChanged: () => Promise<void>;
   setError: (m: string | null) => void;
 }) {
-  const empty = { code: "", content: "", subfactorId: "", isReverse: false };
+  const empty: {
+    code: string;
+    content: string;
+    type: QuestionType;
+    subfactorId: string;
+    isReverse: boolean;
+    isRequired: boolean;
+    minSelect: string;
+    maxSelect: string;
+    options: Array<{ value: number; label: string }>;
+  } = {
+    code: "",
+    content: "",
+    type: "LIKERT",
+    subfactorId: "",
+    isReverse: false,
+    isRequired: true,
+    minSelect: "",
+    maxSelect: "",
+    options: [{ value: 1, label: "옵션 1" }, { value: 2, label: "옵션 2" }],
+  };
   const [draft, setDraft] = useState(empty);
 
   async function add() {
@@ -358,8 +385,13 @@ function QuestionManager({
     const res = await api.post(`/api/admin/scale-versions/${version.id}/questions`, {
       code: draft.code.trim(),
       content: draft.content.trim(),
+      type: draft.type,
       subfactorId: draft.subfactorId || null,
-      isReverse: draft.isReverse,
+      isReverse: draft.type === "LIKERT" ? draft.isReverse : false,
+      isRequired: draft.isRequired,
+      minSelect: draft.type === "MULTIPLE" && draft.minSelect ? Number(draft.minSelect) : null,
+      maxSelect: draft.type === "MULTIPLE" && draft.maxSelect ? Number(draft.maxSelect) : null,
+      options: draft.type !== "TEXT" ? draft.options : undefined,
     });
     if (!res.ok) setError(res.error.message);
     else {
@@ -411,6 +443,9 @@ function QuestionManager({
               <span className={`flex-1 ${q.isActive ? "text-slate-800" : "text-slate-400 line-through"}`}>
                 {q.content}
               </span>
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                {QUESTION_TYPE_LABEL[q.type] ?? q.type}
+              </span>
               {q.subfactorId && (
                 <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
                   {subMap.get(q.subfactorId)}
@@ -418,6 +453,9 @@ function QuestionManager({
               )}
               {q.isReverse && (
                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">역문항</span>
+              )}
+              {!q.isRequired && (
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">선택</span>
               )}
               {editable && (
                 <span className="flex items-center gap-1">
@@ -438,24 +476,78 @@ function QuestionManager({
       )}
 
       {editable && (
-        <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[80px_1fr_120px_auto_auto]">
-          <Input placeholder="코드" value={draft.code}
-            onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-medium text-slate-500">새 문항 추가</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input placeholder="코드 (예: Q1)" value={draft.code}
+              onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
+            <Select value={draft.type}
+              onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as QuestionType }))}>
+              {Object.entries(QUESTION_TYPE_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </Select>
+          </div>
           <Input placeholder="문항 내용" value={draft.content}
             onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))} />
-          <Select value={draft.subfactorId}
-            onChange={(e) => setDraft((d) => ({ ...d, subfactorId: e.target.value }))}>
-            <option value="">하위요인 없음</option>
-            {version.subfactors.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </Select>
-          <label className="flex items-center gap-1 text-sm">
-            <input type="checkbox" checked={draft.isReverse}
-              onChange={(e) => setDraft((d) => ({ ...d, isReverse: e.target.checked }))} />
-            역문항
-          </label>
-          <Button size="sm" onClick={add}>추가</Button>
+          <div className="flex flex-wrap gap-3">
+            <Select value={draft.subfactorId}
+              onChange={(e) => setDraft((d) => ({ ...d, subfactorId: e.target.value }))}>
+              <option value="">하위요인 없음</option>
+              {version.subfactors.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+            <label className="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked={draft.isRequired}
+                onChange={(e) => setDraft((d) => ({ ...d, isRequired: e.target.checked }))} />
+              필수 응답
+            </label>
+            {draft.type === "LIKERT" && (
+              <label className="flex items-center gap-1 text-sm">
+                <input type="checkbox" checked={draft.isReverse}
+                  onChange={(e) => setDraft((d) => ({ ...d, isReverse: e.target.checked }))} />
+                역문항
+              </label>
+            )}
+          </div>
+          {draft.type === "MULTIPLE" && (
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="number" min={0} placeholder="최소 선택 개수"
+                value={draft.minSelect}
+                onChange={(e) => setDraft((d) => ({ ...d, minSelect: e.target.value }))} />
+              <Input type="number" min={1} placeholder="최대 선택 개수"
+                value={draft.maxSelect}
+                onChange={(e) => setDraft((d) => ({ ...d, maxSelect: e.target.value }))} />
+            </div>
+          )}
+          {(draft.type === "SINGLE" || draft.type === "MULTIPLE") && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">보기 선택지</p>
+              {draft.options.map((o, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input placeholder={`옵션 ${idx + 1}`} value={o.label}
+                    onChange={(e) => {
+                      const opts = [...draft.options];
+                      opts[idx] = { value: idx + 1, label: e.target.value };
+                      setDraft((d) => ({ ...d, options: opts }));
+                    }} />
+                  <Button size="sm" variant="secondary" type="button"
+                    onClick={() => setDraft((d) => ({ ...d, options: d.options.filter((_, i) => i !== idx) }))}>
+                    ×
+                  </Button>
+                </div>
+              ))}
+              <Button size="sm" variant="secondary" type="button"
+                onClick={() => setDraft((d) => ({
+                  ...d,
+                  options: [...d.options, { value: d.options.length + 1, label: `옵션 ${d.options.length + 1}` }],
+                }))}>
+                + 보기 추가
+              </Button>
+            </div>
+          )}
+          <Button size="sm" onClick={add}>문항 추가</Button>
         </div>
       )}
     </Card>

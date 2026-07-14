@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
 import { badRequest, forbidden, handler, notFound, ok } from "@/lib/http";
+import { assertCanAccessResponse } from "@/lib/responseAuth";
 
 type Params = { params: Promise<{ responseId: string }> };
 
@@ -15,7 +15,6 @@ interface Band {
 }
 
 export const GET = handler(async (_req: NextRequest, { params }: Params) => {
-  const user = await requireUser();
   const { responseId } = await params;
 
   const response = await prisma.surveyResponse.findUnique({
@@ -35,7 +34,7 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
   });
 
   if (!response) throw notFound("응답을 찾을 수 없습니다.");
-  if (response.participant.userId !== user.id) throw forbidden();
+  await assertCanAccessResponse(response);
   if (response.status !== "COMPLETED") throw badRequest("완료된 응답만 결과를 볼 수 있습니다.");
   if (!response.survey.showResult) throw forbidden("이 설문은 결과를 공개하지 않습니다.");
 

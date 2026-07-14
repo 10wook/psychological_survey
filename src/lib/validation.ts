@@ -4,8 +4,11 @@ import { z } from "zod";
 
 export const genderEnum = z.enum(["MALE", "FEMALE", "OTHER", "UNDISCLOSED"]);
 
+const currentYear = new Date().getFullYear();
+
 export const registerSchema = z
   .object({
+    name: z.string().min(1, "이름을 입력하세요."),
     email: z.string().email("올바른 이메일을 입력하세요."),
     password: z
       .string()
@@ -13,13 +16,12 @@ export const registerSchema = z
       .regex(/[A-Za-z]/, "영문을 포함해야 합니다.")
       .regex(/[0-9]/, "숫자를 포함해야 합니다."),
     passwordConfirm: z.string(),
-    birthYear: z
-      .number()
-      .int()
-      .min(1900)
-      .max(new Date().getFullYear())
-      .optional(),
+    birthYear: z.number().int().min(1900).max(currentYear),
+    birthMonth: z.number().int().min(1).max(12),
+    birthDay: z.number().int().min(1).max(31),
     gender: genderEnum.default("UNDISCLOSED"),
+    phone: z.string().min(1, "연락처를 입력하세요."),
+    affiliation: z.string().min(1, "소속을 입력하세요."),
     consentPrivacy: z.literal(true, {
       errorMap: () => ({ message: "개인정보 수집 동의는 필수입니다." }),
     }),
@@ -83,6 +85,8 @@ export const createSubfactorSchema = z.object({
 export const updateSubfactorSchema = createSubfactorSchema.partial();
 
 // --- 문항 --------------------------------------------------------------
+export const questionTypeEnum = z.enum(["LIKERT", "SINGLE", "MULTIPLE", "TEXT"]);
+
 export const questionOptionSchema = z.object({
   value: z.number().int(),
   label: z.string().min(1),
@@ -92,11 +96,15 @@ export const questionOptionSchema = z.object({
 export const createQuestionSchema = z.object({
   code: z.string().min(1),
   content: z.string().min(1),
+  type: questionTypeEnum.default("LIKERT"),
   isReverse: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  isRequired: z.boolean().default(true),
   subfactorId: z.string().nullish(),
   minScore: z.number().int().nullish(),
   maxScore: z.number().int().nullish(),
+  minSelect: z.number().int().nonnegative().nullish(),
+  maxSelect: z.number().int().positive().nullish(),
   displayOrder: z.number().int().optional(),
   options: z.array(questionOptionSchema).optional(),
 });
@@ -151,10 +159,24 @@ export const saveAnswersSchema = z.object({
     .array(
       z.object({
         questionId: z.string().min(1),
-        rawScore: z.number().int().nullable(),
+        rawScore: z.number().int().nullable().optional(),
+        textValue: z.string().nullable().optional(),
+        selectedValues: z.array(z.number().int()).optional(),
       }),
     )
     .min(1),
+});
+
+// --- 비회원 응답 시작 --------------------------------------------------
+export const guestStartSchema = z.object({
+  name: z.string().min(1, "이름을 입력하세요."),
+  email: z.string().email("올바른 이메일을 입력하세요."),
+  phone: z.string().min(1, "연락처를 입력하세요."),
+  affiliation: z.string().min(1, "소속을 입력하세요."),
+  birthYear: z.number().int().min(1900).max(currentYear),
+  birthMonth: z.number().int().min(1).max(12),
+  birthDay: z.number().int().min(1).max(31),
+  gender: genderEnum.default("UNDISCLOSED"),
 });
 
 // --- 내보내기 ----------------------------------------------------------

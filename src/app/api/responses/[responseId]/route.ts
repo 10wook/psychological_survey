@@ -1,13 +1,12 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
-import { forbidden, handler, notFound, ok } from "@/lib/http";
+import { handler, notFound, ok } from "@/lib/http";
+import { assertCanAccessResponse } from "@/lib/responseAuth";
 
 type Params = { params: Promise<{ responseId: string }> };
 
 // 응답 로드 (문서 6.10 이어하기). 저장된 문항 순서대로 문항을 구성해 반환.
 export const GET = handler(async (_req: NextRequest, { params }: Params) => {
-  const user = await requireUser();
   const { responseId } = await params;
 
   const response = await prisma.surveyResponse.findUnique({
@@ -36,10 +35,10 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
   });
 
   if (!response) throw notFound("응답을 찾을 수 없습니다.");
-  if (response.participant.userId !== user.id) throw forbidden();
+  await assertCanAccessResponse(response);
 
   const order = (response.questionOrderJson ?? {}) as Record<string, string[]>;
-  const answerMap = new Map(response.answers.map((a) => [a.questionId, a.rawScore]));
+  const answerMap = new Map(response.answers.map((a) => [a.questionId, a]));
 
   const scales = response.survey.surveyScales.map((ss) => {
     const version = ss.scaleVersion;
@@ -50,13 +49,22 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
     const questions = orderedIds
       .map((id) => questionById.get(id))
       .filter((q): q is NonNullable<typeof q> => Boolean(q) && q!.isActive)
-      .map((q) => ({
-        id: q.id,
-        code: q.code,
-        content: q.content,
-        rawScore: answerMap.get(q.id) ?? null,
-        options: q.options.map((o) => ({ value: o.value, label: o.label })),
-      }));
+      .map((q) => {
+        const a = answerMap.get(q.id);
+        return {
+          id: q.id,
+          code: q.code,
+          content: q.content,
+          type: q.type,
+          isRequired: q.isRequired,
+          minSelect: q.minSelect,
+          maxSelect: q.maxSelect,
+          rawScore: a?.rawScore ?? null,
+          textValue: a?.textValue ?? null,
+          selectedValues: a?.selectedValues ?? [],
+          options: q.options.map((o) => ({ value: o.value, label: o.label })),
+        };
+      });
 
     return {
       surveyScaleId: ss.id,

@@ -43,8 +43,10 @@ function q(
 ): ScoringQuestion {
   return {
     id,
+    type: "LIKERT",
     isReverse: false,
     isActive: true,
+    isRequired: true,
     subfactorId: null,
     minScore: null,
     maxScore: null,
@@ -130,12 +132,45 @@ describe("scoreScale (척도 총점/평균/하위요인)", () => {
 describe("findUnansweredActiveQuestions (필수 응답 검증)", () => {
   it("미응답 활성 문항 id 반환", () => {
     const questions = [q("q1"), q("q2"), q("q3", { isActive: false })];
-    const unanswered = findUnansweredActiveQuestions(questions, { q1: 3 });
+    const unanswered = findUnansweredActiveQuestions(questions, {
+      q1: { rawScore: 3 },
+    });
     expect(unanswered).toEqual(["q2"]); // q3 비활성이라 제외
+  });
+
+  it("선택 응답(isRequired=false)은 미응답이어도 제외", () => {
+    const questions = [q("q1"), q("q2", { isRequired: false })];
+    expect(findUnansweredActiveQuestions(questions, { q1: { rawScore: 1 } })).toEqual([]);
+  });
+
+  it("줄글/체크박스 유형 응답 판정", () => {
+    const questions = [
+      q("t1", { type: "TEXT" }),
+      q("m1", { type: "MULTIPLE", minSelect: 2 }),
+    ];
+    // 줄글 비어있음, 체크박스 1개(최소 2 미달) → 둘 다 미응답
+    expect(
+      findUnansweredActiveQuestions(questions, {
+        t1: { textValue: "  " },
+        m1: { selectedValues: [1] },
+      }),
+    ).toEqual(["t1", "m1"]);
+    // 충족 시 빈 배열
+    expect(
+      findUnansweredActiveQuestions(questions, {
+        t1: { textValue: "응답" },
+        m1: { selectedValues: [1, 2] },
+      }),
+    ).toEqual([]);
   });
 
   it("모두 응답하면 빈 배열", () => {
     const questions = [q("q1"), q("q2")];
-    expect(findUnansweredActiveQuestions(questions, { q1: 1, q2: 2 })).toEqual([]);
+    expect(
+      findUnansweredActiveQuestions(questions, {
+        q1: { rawScore: 1 },
+        q2: { rawScore: 2 },
+      }),
+    ).toEqual([]);
   });
 });

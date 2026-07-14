@@ -124,8 +124,14 @@ export default function NewSurveyPage() {
           <fieldset className="space-y-2 rounded-lg border border-slate-200 p-3">
             <legend className="px-1 text-xs font-medium text-slate-500">옵션</legend>
             <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={!form.requireLogin}
+                onChange={(e) => setForm((f) => ({ ...f, requireLogin: !e.target.checked }))} />
+              비회원 응답 허용 (로그인 없이 참여 가능)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.requireLogin}
-                onChange={(e) => setForm((f) => ({ ...f, requireLogin: e.target.checked }))} /> 로그인 필수
+                onChange={(e) => setForm((f) => ({ ...f, requireLogin: e.target.checked }))} />
+              회원 전용 (로그인 필수)
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.allowDuplicate}

@@ -1,4 +1,6 @@
 // 클라이언트 컴포넌트에서 사용하는 API 응답 형태.
+export type QuestionType = "LIKERT" | "SINGLE" | "MULTIPLE" | "TEXT";
+
 export interface QuestionOptionDTO {
   id: string;
   value: number;
@@ -10,11 +12,15 @@ export interface QuestionDTO {
   id: string;
   code: string;
   content: string;
+  type: QuestionType;
   isReverse: boolean;
   isActive: boolean;
+  isRequired: boolean;
   subfactorId: string | null;
   minScore: number | null;
   maxScore: number | null;
+  minSelect: number | null;
+  maxSelect: number | null;
   displayOrder: number;
   options: QuestionOptionDTO[];
 }

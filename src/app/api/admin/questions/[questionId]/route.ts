@@ -16,6 +16,7 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
   await assertScaleVersionEditable(existing.scaleVersionId);
 
   const input = updateQuestionSchema.parse(await req.json());
+  const nextType = input.type ?? existing.type;
 
   const question = await prisma.$transaction(async (tx) => {
     const updated = await tx.question.update({
@@ -23,25 +24,30 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
       data: {
         code: input.code,
         content: input.content,
-        isReverse: input.isReverse,
+        type: input.type,
+        isReverse: nextType === "LIKERT" ? input.isReverse : false,
         isActive: input.isActive,
+        isRequired: input.isRequired,
         subfactorId: input.subfactorId === undefined ? undefined : input.subfactorId,
         minScore: input.minScore === undefined ? undefined : input.minScore,
         maxScore: input.maxScore === undefined ? undefined : input.maxScore,
+        minSelect: nextType === "MULTIPLE" ? (input.minSelect ?? null) : null,
+        maxSelect: nextType === "MULTIPLE" ? (input.maxSelect ?? null) : null,
         displayOrder: input.displayOrder,
       },
     });
-    // 선택지가 제공되면 교체
     if (input.options) {
       await tx.questionOption.deleteMany({ where: { questionId } });
-      await tx.questionOption.createMany({
-        data: input.options.map((o, idx) => ({
-          questionId,
-          value: o.value,
-          label: o.label,
-          displayOrder: o.displayOrder ?? idx + 1,
-        })),
-      });
+      if (nextType !== "TEXT") {
+        await tx.questionOption.createMany({
+          data: input.options.map((o, idx) => ({
+            questionId,
+            value: o.value,
+            label: o.label,
+            displayOrder: o.displayOrder ?? idx + 1,
+          })),
+        });
+      }
     }
     return updated;
   });

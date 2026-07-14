@@ -75,15 +75,18 @@ enum Gender {
 }
 
 model UserProfile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  birthYear Int?
-  birthMonth Int?
-  birthDay  Int?
-  gender    Gender   @default(UNDISCLOSED)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String?
+  birthYear   Int?
+  birthMonth  Int?
+  birthDay    Int?
+  gender      Gender   @default(UNDISCLOSED)
+  phone       String?
+  affiliation String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum ConsentType {
@@ -178,6 +181,14 @@ model Subfactor {
   @@index([scaleVersionId])
 }
 
+// 문항 유형. LIKERT 만 채점 대상, 나머지는 자유 문항(그래프/목록로 확인).
+enum QuestionType {
+  LIKERT // 리커트 척도 (채점)
+  SINGLE // 단일 선택 라디오 (비채점)
+  MULTIPLE // 다중 선택 체크박스 (비채점)
+  TEXT // 줄글 (비채점)
+}
+
 model Question {
   id             String       @id @default(cuid())
   scaleVersionId String
@@ -186,12 +197,17 @@ model Question {
   subfactor      Subfactor?   @relation(fields: [subfactorId], references: [id], onDelete: SetNull)
   code           String
   content        String
+  type           QuestionType @default(LIKERT)
   isReverse      Boolean      @default(false)
   isActive       Boolean      @default(true)
+  isRequired     Boolean      @default(true)
   displayOrder   Int          @default(0)
   // null 이면 척도 버전의 min/max 를 상속
   minScore       Int?
   maxScore       Int?
+  // 체크박스(MULTIPLE) 선택 개수 제한. null 이면 제한 없음.
+  minSelect      Int?
+  maxSelect      Int?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -276,6 +292,16 @@ model Participant {
   userId        String?  @unique
   user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   anonymousCode String   @unique
+  isGuest       Boolean  @default(false)
+  // 비회원 응답자 식별정보 (PII). 회원은 UserProfile 사용.
+  guestName        String?
+  guestEmail       String?
+  guestPhone       String?
+  guestAffiliation String?
+  guestBirthYear   Int?
+  guestBirthMonth  Int?
+  guestBirthDay    Int?
+  guestGender      Gender?
   createdAt     DateTime @default(now())
 
   responses SurveyResponse[]
@@ -295,6 +321,8 @@ model SurveyResponse {
   participantId String
   participant   Participant    @relation(fields: [participantId], references: [id])
   status        ResponseStatus @default(IN_PROGRESS)
+  // 비회원 응답 인가용 토큰 (쿠키와 대조)
+  accessToken   String?
   startedAt     DateTime       @default(now())
   lastSavedAt   DateTime       @default(now())
   completedAt   DateTime?
@@ -322,6 +350,9 @@ model Answer {
   question         Question       @relation(fields: [questionId], references: [id])
   rawScore         Int?
   convertedScore   Int?
+  // 자유 문항 응답: 줄글(textValue), 체크박스 다중선택(selectedValues)
+  textValue        String?
+  selectedValues   Int[]          @default([])
   answeredAt       DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 

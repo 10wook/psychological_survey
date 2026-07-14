@@ -1,19 +1,21 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
 import { badRequest, forbidden, handler, notFound, ok } from "@/lib/http";
-import { findUnansweredActiveQuestions, type ScoringQuestion } from "@/lib/scoring";
+import {
+  findUnansweredActiveQuestions,
+  type AnswerValue,
+  type ScoringQuestion,
+} from "@/lib/scoring";
 import { scoreAndSaveResponse } from "@/lib/scoreResponse";
+import { assertCanAccessResponse } from "@/lib/responseAuth";
 
 type Params = { params: Promise<{ responseId: string }> };
 
-// DB(Supabase, 도쿄)와 가까운 서울 리전에서 실행해 왕복 지연을 줄인다.
 export const preferredRegion = "icn1";
 export const runtime = "nodejs";
 
-// 설문 제출 (문서 6.11). 서버 재검증 → 채점 → 결과 저장을 하나의 트랜잭션으로.
+// 설문 제출. 서버 재검증 → 채점(LIKERT만) → 결과 저장.
 export const POST = handler(async (_req: NextRequest, { params }: Params) => {
-  const user = await requireUser();
   const { responseId } = await params;
 
   const response = await prisma.surveyResponse.findUnique({
@@ -29,7 +31,7 @@ export const POST = handler(async (_req: NextRequest, { params }: Params) => {
     },
   });
   if (!response) throw notFound("응답을 찾을 수 없습니다.");
-  if (response.participant.userId !== user.id) throw forbidden();
+  await assertCanAccessResponse(response);
   if (response.status === "COMPLETED") throw badRequest("이미 완료된 응답입니다.");
 
   const survey = response.survey;
@@ -37,21 +39,30 @@ export const POST = handler(async (_req: NextRequest, { params }: Params) => {
   if (survey.status !== "PUBLISHED") throw forbidden("현재 제출할 수 없는 설문입니다.");
   if (survey.endAt && survey.endAt < now) throw forbidden("종료된 설문입니다.");
 
-  const rawScores: Record<string, number | null> = {};
-  for (const a of response.answers) rawScores[a.questionId] = a.rawScore;
+  const answerMap: Record<string, AnswerValue> = {};
+  for (const a of response.answers) {
+    answerMap[a.questionId] = {
+      rawScore: a.rawScore,
+      textValue: a.textValue,
+      selectedValues: a.selectedValues,
+    };
+  }
 
-  // 필수 척도의 모든 활성 문항 응답 여부 검증
   for (const ss of survey.surveyScales) {
     if (!ss.isRequired) continue;
     const questions: ScoringQuestion[] = ss.scaleVersion.questions.map((q) => ({
       id: q.id,
+      type: q.type,
       isReverse: q.isReverse,
       isActive: q.isActive,
+      isRequired: q.isRequired,
       subfactorId: q.subfactorId,
       minScore: q.minScore,
       maxScore: q.maxScore,
+      minSelect: q.minSelect,
+      maxSelect: q.maxSelect,
     }));
-    const missing = findUnansweredActiveQuestions(questions, rawScores);
+    const missing = findUnansweredActiveQuestions(questions, answerMap);
     if (missing.length > 0) {
       throw badRequest(
         `필수 척도의 모든 문항에 응답해야 합니다. (미응답 ${missing.length}개)`,
@@ -77,7 +88,6 @@ export const POST = handler(async (_req: NextRequest, { params }: Params) => {
         },
       });
     },
-    // 원격 DB(예: Vercel↔Supabase) 지연을 고려해 기본 5초보다 넉넉히 잡는다.
     { maxWait: 15000, timeout: 30000 },
   );
 

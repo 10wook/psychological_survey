@@ -42,9 +42,13 @@ export async function cloneVersionContent(
         subfactorId: q.subfactorId ? subfactorIdMap.get(q.subfactorId) ?? null : null,
         code: q.code,
         content: q.content,
+        type: q.type,
         isReverse: q.isReverse,
         isActive: q.isActive,
+        isRequired: q.isRequired,
         displayOrder: q.displayOrder,
+        minSelect: q.minSelect,
+        maxSelect: q.maxSelect,
         minScore: q.minScore,
         maxScore: q.maxScore,
         options: {

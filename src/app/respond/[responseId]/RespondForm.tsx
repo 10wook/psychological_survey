@@ -3,13 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { Alert, Button, Card } from "@/components/ui";
+import { Alert, Button, Card, Textarea } from "@/components/ui";
+
+type QuestionType = "LIKERT" | "SINGLE" | "MULTIPLE" | "TEXT";
 
 interface QuestionDTO {
   id: string;
   code: string;
   content: string;
+  type: QuestionType;
+  isRequired: boolean;
+  minSelect: number | null;
+  maxSelect: number | null;
   rawScore: number | null;
+  textValue: string | null;
+  selectedValues: number[];
   options: Array<{ value: number; label: string }>;
 }
 interface ScaleDTO {
@@ -28,19 +36,51 @@ interface ResponseDTO {
   scales: ScaleDTO[];
 }
 
+interface AnswerState {
+  rawScore?: number | null;
+  textValue?: string | null;
+  selectedValues?: number[];
+}
+
 type SaveState = "idle" | "saving" | "saved" | "error";
+type DirtyEntry = AnswerState;
+
+function isAnswered(q: QuestionDTO, a: AnswerState | undefined): boolean {
+  if (!a) return false;
+  switch (q.type) {
+    case "TEXT":
+      return typeof a.textValue === "string" && a.textValue.trim().length > 0;
+    case "MULTIPLE": {
+      const n = a.selectedValues?.length ?? 0;
+      if (n === 0) return false;
+      if (q.minSelect != null && n < q.minSelect) return false;
+      return true;
+    }
+    default:
+      return a.rawScore !== null && a.rawScore !== undefined;
+  }
+}
+
+function toPayload(questionId: string, a: AnswerState) {
+  return {
+    questionId,
+    rawScore: a.rawScore ?? null,
+    textValue: a.textValue ?? null,
+    selectedValues: a.selectedValues ?? [],
+  };
+}
 
 export function RespondForm({ responseId }: { responseId: string }) {
   const router = useRouter();
   const [data, setData] = useState<ResponseDTO | null>(null);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
   const [scaleIndex, setScaleIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [submitting, setSubmitting] = useState(false);
   const [highlightUnanswered, setHighlightUnanswered] = useState(false);
 
-  const dirtyRef = useRef<Map<string, number | null>>(new Map());
+  const dirtyRef = useRef<Map<string, DirtyEntry>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -55,10 +95,14 @@ export function RespondForm({ responseId }: { responseId: string }) {
         return;
       }
       setData(res.data.response);
-      const init: Record<string, number> = {};
+      const init: Record<string, AnswerState> = {};
       for (const s of res.data.response.scales) {
         for (const q of s.questions) {
-          if (q.rawScore !== null) init[q.id] = q.rawScore;
+          init[q.id] = {
+            rawScore: q.rawScore,
+            textValue: q.textValue,
+            selectedValues: q.selectedValues ?? [],
+          };
         }
       }
       setAnswers(init);
@@ -68,37 +112,37 @@ export function RespondForm({ responseId }: { responseId: string }) {
   const flush = useCallback(async () => {
     if (dirtyRef.current.size === 0) return;
     const entries = [...dirtyRef.current.entries()];
-    const payload = entries.map(([questionId, rawScore]) => ({ questionId, rawScore }));
+    const payload = entries.map(([questionId, val]) => toPayload(questionId, val));
     setSaveState("saving");
     const res = await api.put(`/api/responses/${responseId}/answers`, { answers: payload });
     if (res.ok) {
-      // 저장에 성공한 값만 대기열에서 제거 (그 사이 바뀐 값은 유지)
       for (const [qid, val] of entries) {
-        if (dirtyRef.current.get(qid) === val) dirtyRef.current.delete(qid);
+        const cur = dirtyRef.current.get(qid);
+        if (cur && JSON.stringify(cur) === JSON.stringify(val)) dirtyRef.current.delete(qid);
       }
       setSaveState("saved");
     } else {
-      // 실패 시 대기열을 비우지 않아 다음 저장/제출 때 재시도된다.
       setSaveState("error");
       setError(res.error.message);
     }
   }, [responseId]);
 
-  // debounce 저장 (문서 6.10)
   function scheduleSave() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void flush(), 800);
   }
 
-  function select(questionId: string, value: number) {
-    setAnswers((a) => ({ ...a, [questionId]: value }));
-    dirtyRef.current.set(questionId, value);
+  function updateAnswer(questionId: string, patch: Partial<AnswerState>) {
+    setAnswers((prev) => {
+      const next = { ...prev[questionId], ...patch };
+      dirtyRef.current.set(questionId, next);
+      return { ...prev, [questionId]: next };
+    });
     setSaveState("saving");
     scheduleSave();
     if (highlightUnanswered) setHighlightUnanswered(false);
   }
 
-  // 페이지 이탈 전 저장 시도
   useEffect(() => {
     const handler = () => {
       if (dirtyRef.current.size > 0) void flush();
@@ -107,24 +151,30 @@ export function RespondForm({ responseId }: { responseId: string }) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flush]);
 
-  if (error && !data) return <div className="mx-auto max-w-2xl p-6"><Alert variant="error">{error}</Alert></div>;
+  if (error && !data) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <Alert variant="error">{error}</Alert>
+      </div>
+    );
+  }
   if (!data) return <div className="mx-auto max-w-2xl p-6 text-sm text-slate-500">불러오는 중...</div>;
 
   const scale = data.scales[scaleIndex]!;
-  const totalQuestions = data.scales.reduce((n, s) => n + s.questions.length, 0);
-  const answeredCount = data.scales.reduce(
-    (n, s) => n + s.questions.filter((q) => answers[q.id] !== undefined).length,
-    0,
-  );
+  const allQuestions = data.scales.flatMap((s) => s.questions);
+  const totalQuestions = allQuestions.length;
+  const answeredCount = allQuestions.filter((q) => isAnswered(q, answers[q.id])).length;
   const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
   const isLastScale = scaleIndex === data.scales.length - 1;
 
-  const scaleUnanswered = scale.questions.filter((q) => answers[q.id] === undefined);
+  const scaleUnanswered = scale.questions.filter(
+    (q) => q.isRequired && !isAnswered(q, answers[q.id]),
+  );
 
   async function goNext() {
     await flush();
     if (scale.isRequired && scaleUnanswered.length > 0) {
-      setError(`이 척도의 모든 문항에 응답해야 다음으로 이동할 수 있습니다. (남은 ${scaleUnanswered.length}개)`);
+      setError(`이 척도의 모든 필수 문항에 응답해야 다음으로 이동할 수 있습니다. (남은 ${scaleUnanswered.length}개)`);
       setHighlightUnanswered(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -143,17 +193,15 @@ export function RespondForm({ responseId }: { responseId: string }) {
   async function submit() {
     setSubmitting(true);
     setError(null);
-    // 제출 직전에 화면의 모든 응답을 통째로 저장해 DB와 화면을 일치시킨다.
-    const fullPayload = Object.entries(answers).map(([questionId, rawScore]) => ({
-      questionId,
-      rawScore,
-    }));
+    const fullPayload = Object.entries(answers).map(([questionId, val]) =>
+      toPayload(questionId, val),
+    );
     setSaveState("saving");
     const saveRes = await api.put(`/api/responses/${responseId}/answers`, { answers: fullPayload });
     if (!saveRes.ok) {
       setSaveState("error");
       setSubmitting(false);
-      setError(`응답 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요. (${saveRes.error.message})`);
+      setError(`응답 저장에 실패했습니다. (${saveRes.error.message})`);
       return;
     }
     dirtyRef.current.clear();
@@ -163,9 +211,8 @@ export function RespondForm({ responseId }: { responseId: string }) {
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error.message);
-      // 미응답이 있는 첫 척도로 이동시켜 오류를 바로 보이게 함
-      const firstIncomplete = data!.scales.findIndex(
-        (s) => s.isRequired && s.questions.some((q) => answers[q.id] === undefined),
+      const firstIncomplete = data!.scales.findIndex((s) =>
+        s.isRequired && s.questions.some((q) => q.isRequired && !isAnswered(q, answers[q.id])),
       );
       if (firstIncomplete >= 0) setScaleIndex(firstIncomplete);
       setHighlightUnanswered(true);
@@ -184,7 +231,6 @@ export function RespondForm({ responseId }: { responseId: string }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* 진행 헤더 */}
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between text-sm">
@@ -206,38 +252,97 @@ export function RespondForm({ responseId }: { responseId: string }) {
         {error && <Alert variant="error">{error}</Alert>}
 
         {scale.questions.map((q, idx) => {
-          const isUnanswered = answers[q.id] === undefined;
-          const flag = highlightUnanswered && scale.isRequired && isUnanswered;
+          const a = answers[q.id] ?? {};
+          const unanswered = q.isRequired && !isAnswered(q, a);
+          const flag = highlightUnanswered && unanswered;
           return (
-          <Card key={q.id} className={`p-4 ${flag ? "border-red-300 bg-red-50" : ""}`}>
-            <p className="mb-3 text-sm font-medium text-slate-800">
-              <span className="mr-2 text-slate-400">{idx + 1}.</span>
-              {q.content}
-              {flag && <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600">미응답</span>}
-            </p>
-            <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.content}>
-              {q.options.map((o) => {
-                const checked = answers[q.id] === o.value;
-                return (
-                  <label
-                    key={o.value}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${
-                      checked ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={q.id}
-                      value={o.value}
-                      checked={checked}
-                      onChange={() => select(q.id, o.value)}
-                    />
-                    <span>{o.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </Card>
+            <Card key={q.id} className={`p-4 ${flag ? "border-red-300 bg-red-50" : ""}`}>
+              <p className="mb-3 text-sm font-medium text-slate-800">
+                <span className="mr-2 text-slate-400">{idx + 1}.</span>
+                {q.content}
+                {q.isRequired && <span className="ml-1 text-red-500">*</span>}
+                {flag && (
+                  <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600">
+                    미응답
+                  </span>
+                )}
+              </p>
+
+              {q.type === "TEXT" && (
+                <Textarea
+                  rows={4}
+                  placeholder="답변을 입력하세요"
+                  value={a.textValue ?? ""}
+                  onChange={(e) => updateAnswer(q.id, { textValue: e.target.value, rawScore: null, selectedValues: [] })}
+                />
+              )}
+
+              {(q.type === "LIKERT" || q.type === "SINGLE") && (
+                <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.content}>
+                  {q.options.map((o) => {
+                    const checked = a.rawScore === o.value;
+                    return (
+                      <label
+                        key={o.value}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${
+                          checked ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={q.id}
+                          checked={checked}
+                          onChange={() =>
+                            updateAnswer(q.id, { rawScore: o.value, textValue: null, selectedValues: [] })
+                          }
+                        />
+                        <span>{o.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {q.type === "MULTIPLE" && (
+                <div className="flex flex-col gap-2">
+                  {(q.minSelect != null || q.maxSelect != null) && (
+                    <p className="text-xs text-slate-500">
+                      {q.minSelect != null && q.maxSelect != null
+                        ? `${q.minSelect}~${q.maxSelect}개 선택`
+                        : q.minSelect != null
+                          ? `최소 ${q.minSelect}개 선택`
+                          : `최대 ${q.maxSelect}개 선택`}
+                    </p>
+                  )}
+                  {q.options.map((o) => {
+                    const selected = a.selectedValues ?? [];
+                    const checked = selected.includes(o.value);
+                    const atMax = q.maxSelect != null && !checked && selected.length >= q.maxSelect;
+                    return (
+                      <label
+                        key={o.value}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${
+                          checked ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"
+                        } ${atMax ? "opacity-50" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={atMax}
+                          onChange={() => {
+                            const next = checked
+                              ? selected.filter((v) => v !== o.value)
+                              : [...selected, o.value];
+                            updateAnswer(q.id, { selectedValues: next, rawScore: null, textValue: null });
+                          }}
+                        />
+                        <span>{o.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
           );
         })}
 

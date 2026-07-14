@@ -4,14 +4,50 @@
 // 문서 6.5 / 10장 규칙 구현.
 // ===========================================================================
 
+export type QuestionKind = "LIKERT" | "SINGLE" | "MULTIPLE" | "TEXT";
+
 export interface ScoringQuestion {
   id: string;
+  type: QuestionKind;
   isReverse: boolean;
   isActive: boolean;
+  isRequired: boolean;
   subfactorId: string | null;
   /** 문항 단위 범위. null 이면 척도 버전 min/max 상속 */
   minScore: number | null;
   maxScore: number | null;
+  /** 체크박스(MULTIPLE) 선택 개수 제한 */
+  minSelect?: number | null;
+  maxSelect?: number | null;
+}
+
+/** 한 문항에 대한 응답 값 (유형별로 다른 필드 사용) */
+export interface AnswerValue {
+  rawScore?: number | null;
+  textValue?: string | null;
+  selectedValues?: number[];
+}
+
+/** 문항 유형에 맞춰 실제로 응답이 되었는지 판정 */
+export function isQuestionAnswered(
+  q: Pick<ScoringQuestion, "type" | "minSelect">,
+  a: AnswerValue | undefined,
+): boolean {
+  if (!a) return false;
+  switch (q.type) {
+    case "TEXT":
+      return typeof a.textValue === "string" && a.textValue.trim().length > 0;
+    case "MULTIPLE": {
+      const n = a.selectedValues?.length ?? 0;
+      if (n === 0) return false;
+      if (q.minSelect != null && n < q.minSelect) return false;
+      return true;
+    }
+    case "SINGLE":
+    case "LIKERT":
+    default:
+      return a.rawScore !== null && a.rawScore !== undefined;
+  }
 }
 
 export interface ScoringInput {
@@ -87,7 +123,10 @@ function resolveRange(
  * - 미응답 문항은 합계/평균에서 제외 (완료 응답 수 기준 평균)
  */
 export function scoreScale(input: ScoringInput): ScaleScoreResult {
-  const activeQuestions = input.questions.filter((q) => q.isActive);
+  // 채점 대상은 리커트 문항만. 자유 문항(SINGLE/MULTIPLE/TEXT)은 합계에서 제외.
+  const activeQuestions = input.questions.filter(
+    (q) => q.isActive && q.type === "LIKERT",
+  );
 
   const questionScores: QuestionScore[] = [];
   let rawTotal = 0;
@@ -144,18 +183,15 @@ export function scoreScale(input: ScoringInput): ScaleScoreResult {
 }
 
 /**
- * 필수 척도의 모든 활성 문항에 응답했는지 검증.
- * 반환: 미응답 문항 id 목록 (비어 있으면 완료)
+ * 활성 + 필수 문항 중 응답되지 않은 문항 id 목록 (비어 있으면 완료).
+ * 유형별 응답 판정을 사용한다.
  */
 export function findUnansweredActiveQuestions(
   questions: ScoringQuestion[],
-  rawScores: Record<string, number | null | undefined>,
+  answers: Record<string, AnswerValue | undefined>,
 ): string[] {
   return questions
-    .filter((q) => q.isActive)
-    .filter((q) => {
-      const raw = rawScores[q.id];
-      return raw === null || raw === undefined;
-    })
+    .filter((q) => q.isActive && q.isRequired)
+    .filter((q) => !isQuestionAnswered(q, answers[q.id]))
     .map((q) => q.id);
 }

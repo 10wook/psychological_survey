@@ -44,11 +44,15 @@ export async function scoreAndSaveResponse(tx: Tx, responseId: string): Promise<
     const version = ss.scaleVersion;
     const questions: ScoringQuestion[] = version.questions.map((q) => ({
       id: q.id,
+      type: q.type,
       isReverse: q.isReverse,
       isActive: q.isActive,
+      isRequired: q.isRequired,
       subfactorId: q.subfactorId,
       minScore: q.minScore,
       maxScore: q.maxScore,
+      minSelect: q.minSelect,
+      maxSelect: q.maxSelect,
     }));
 
     const rawScores: Record<string, number | null> = {};

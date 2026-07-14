@@ -38,8 +38,13 @@ export const POST = handler(async (req: NextRequest) => {
         status: "ACTIVE",
         profile: {
           create: {
-            birthYear: input.birthYear ?? null,
+            name: input.name,
+            birthYear: input.birthYear,
+            birthMonth: input.birthMonth,
+            birthDay: input.birthDay,
             gender: input.gender,
+            phone: input.phone,
+            affiliation: input.affiliation,
           },
         },
         consentRecords: {

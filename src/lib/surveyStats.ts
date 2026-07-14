@@ -51,7 +51,6 @@ export async function getMonitoringStats(surveyId: string): Promise<MonitoringSt
   };
 }
 
-// 기술통계 (문서 6.14). 완료 응답만 대상.
 export interface StatRow {
   key: string;
   label: string;
@@ -64,29 +63,57 @@ export interface QuestionStatRow extends StatRow {
   distribution: Record<number, number>;
 }
 
+/** 자유 문항(SINGLE/MULTIPLE/TEXT) 응답 분포 */
+export interface FreeQuestionStat {
+  questionId: string;
+  code: string;
+  content: string;
+  type: "SINGLE" | "MULTIPLE" | "TEXT";
+  responseCount: number;
+  /** SINGLE/MULTIPLE: 선택지별 응답 수 */
+  optionDistribution?: Array<{ label: string; value: number; count: number }>;
+  /** TEXT: 응답 목록 */
+  textResponses?: string[];
+}
+
 export interface SurveyStatistics {
   scaleStats: StatRow[];
   subfactorStats: StatRow[];
   questionStats: QuestionStatRow[];
+  freeQuestionStats: FreeQuestionStat[];
 }
 
 export async function getSurveyStatistics(surveyId: string): Promise<SurveyStatistics> {
-  // 완료 응답만
   const completedResponses = await prisma.surveyResponse.findMany({
     where: { surveyId, status: "COMPLETED" },
     include: {
       scaleResults: { include: { scaleVersion: { include: { scale: true } } } },
       subfactorResults: { include: { subfactor: true } },
-      answers: { include: { question: true } },
+      answers: {
+        include: {
+          question: { include: { options: { orderBy: { displayOrder: "asc" } } } },
+        },
+      },
     },
   });
 
-  // 척도별: convertedTotal 모음
   const scaleValues = new Map<string, { label: string; values: number[] }>();
   const subfactorValues = new Map<string, { label: string; values: number[] }>();
   const questionValues = new Map<
     string,
     { code: string; label: string; isReverse: boolean; values: number[]; dist: Record<number, number> }
+  >();
+  const freeQuestions = new Map<
+    string,
+    {
+      code: string;
+      content: string;
+      type: "SINGLE" | "MULTIPLE" | "TEXT";
+      options: Array<{ label: string; value: number }>;
+      singleDist: Record<number, number>;
+      multiDist: Record<number, number>;
+      texts: string[];
+    }
   >();
 
   for (const resp of completedResponses) {
@@ -106,21 +133,47 @@ export async function getSurveyStatistics(surveyId: string): Promise<SurveyStati
       subfactorValues.set(key, entry);
     }
     for (const a of resp.answers) {
-      if (a.convertedScore === null) continue;
-      const key = a.questionId;
-      const entry =
-        questionValues.get(key) ?? {
-          code: a.question.code,
-          label: a.question.content,
-          isReverse: a.question.isReverse,
-          values: [],
-          dist: {},
+      const q = a.question;
+      if (q.type === "LIKERT") {
+        if (a.convertedScore === null) continue;
+        const key = a.questionId;
+        const entry =
+          questionValues.get(key) ?? {
+            code: q.code,
+            label: q.content,
+            isReverse: q.isReverse,
+            values: [],
+            dist: {},
+          };
+        entry.values.push(a.convertedScore);
+        if (a.rawScore !== null) {
+          entry.dist[a.rawScore] = (entry.dist[a.rawScore] ?? 0) + 1;
+        }
+        questionValues.set(key, entry);
+      } else if (q.type === "SINGLE" || q.type === "MULTIPLE" || q.type === "TEXT") {
+        const key = a.questionId;
+        const entry = freeQuestions.get(key) ?? {
+          code: q.code,
+          content: q.content,
+          type: q.type as "SINGLE" | "MULTIPLE" | "TEXT",
+          options: q.options.map((o) => ({ label: o.label, value: o.value })),
+          singleDist: {} as Record<number, number>,
+          multiDist: {} as Record<number, number>,
+          texts: [] as string[],
         };
-      entry.values.push(a.convertedScore);
-      if (a.rawScore !== null) {
-        entry.dist[a.rawScore] = (entry.dist[a.rawScore] ?? 0) + 1;
+        if (q.type === "SINGLE" && a.rawScore !== null) {
+          entry.singleDist[a.rawScore] = (entry.singleDist[a.rawScore] ?? 0) + 1;
+        }
+        if (q.type === "MULTIPLE") {
+          for (const v of a.selectedValues) {
+            entry.multiDist[v] = (entry.multiDist[v] ?? 0) + 1;
+          }
+        }
+        if (q.type === "TEXT" && a.textValue) {
+          entry.texts.push(a.textValue);
+        }
+        freeQuestions.set(key, entry);
       }
-      questionValues.set(key, entry);
     }
   }
 
@@ -146,5 +199,41 @@ export async function getSurveyStatistics(surveyId: string): Promise<SurveyStati
   }));
   questionStats.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
-  return { scaleStats, subfactorStats, questionStats };
+  const freeQuestionStats: FreeQuestionStat[] = [...freeQuestions.entries()].map(
+    ([questionId, v]) => {
+      if (v.type === "TEXT") {
+        return {
+          questionId,
+          code: v.code,
+          content: v.content,
+          type: v.type,
+          responseCount: v.texts.length,
+          textResponses: v.texts,
+        };
+      }
+      const dist = v.type === "SINGLE" ? v.singleDist : v.multiDist;
+      const optionDistribution = v.options.map((o) => ({
+        label: o.label,
+        value: o.value,
+        count: dist[o.value] ?? 0,
+      }));
+      const responseCount =
+        v.type === "SINGLE"
+          ? Object.values(v.singleDist).reduce((s, n) => s + n, 0)
+          : completedResponses.filter((r) =>
+              r.answers.some((a) => a.questionId === questionId && a.selectedValues.length > 0),
+            ).length;
+      return {
+        questionId,
+        code: v.code,
+        content: v.content,
+        type: v.type,
+        responseCount,
+        optionDistribution,
+      };
+    },
+  );
+  freeQuestionStats.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+
+  return { scaleStats, subfactorStats, questionStats, freeQuestionStats };
 }

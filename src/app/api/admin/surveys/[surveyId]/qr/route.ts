@@ -7,17 +7,18 @@ import { handler, notFound, ok } from "@/lib/http";
 type Params = { params: Promise<{ surveyId: string }> };
 
 // 공개 URL 기준 도메인 결정.
-// 환경변수가 실제 운영 도메인(비 localhost)이면 우선 사용하고,
-// 그렇지 않으면 관리자가 실제 접속 중인 도메인(요청 헤더)을 사용한다.
-// -> 배포 시 NEXT_PUBLIC_APP_URL 이 localhost 로 남아 있어도 링크/QR 이 올바른 주소를 가리킨다.
+// 관리자가 "실제 접속 중인 도메인"(요청 헤더)을 최우선으로 사용한다.
+// -> 어떤 배포 URL 로 접속하든 그 도메인 기준으로 링크/QR 이 만들어져 항상 열린다.
+// 요청 헤더를 못 얻는 예외 상황에서만 NEXT_PUBLIC_APP_URL 을 보조로 쓴다.
 function resolveBaseUrl(req: NextRequest): string {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") ?? "https";
+  if (host) return `${proto}://${host}`;
+
   const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (envUrl && !/localhost|127\.0\.0\.1/.test(envUrl)) {
     return envUrl.replace(/\/+$/, "");
   }
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto}://${host}`;
   return new URL(req.url).origin;
 }
 

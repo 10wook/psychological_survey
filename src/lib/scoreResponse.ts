@@ -63,11 +63,17 @@ export async function scoreAndSaveResponse(tx: Tx, responseId: string): Promise<
       rawScores,
     });
 
-    // 문항별 변환점수 저장
+    // 문항별 변환점수 저장: 원격 DB 왕복을 줄이기 위해 동일 점수끼리 묶어 일괄 갱신
+    const byConverted = new Map<number, string[]>();
     for (const qs of result.questionScores) {
+      const arr = byConverted.get(qs.convertedScore) ?? [];
+      arr.push(qs.questionId);
+      byConverted.set(qs.convertedScore, arr);
+    }
+    for (const [converted, questionIds] of byConverted) {
       await tx.answer.updateMany({
-        where: { surveyResponseId: responseId, questionId: qs.questionId },
-        data: { convertedScore: qs.convertedScore },
+        where: { surveyResponseId: responseId, questionId: { in: questionIds } },
+        data: { convertedScore: converted },
       });
     }
 
@@ -84,15 +90,15 @@ export async function scoreAndSaveResponse(tx: Tx, responseId: string): Promise<
       });
     }
 
-    for (const sf of result.subfactorScores) {
-      await tx.subfactorResult.create({
-        data: {
+    if (result.subfactorScores.length > 0) {
+      await tx.subfactorResult.createMany({
+        data: result.subfactorScores.map((sf) => ({
           surveyResponseId: responseId,
           subfactorId: sf.subfactorId,
           totalScore: sf.totalScore,
           averageScore: sf.averageScore,
           completedQuestionCount: sf.completedQuestionCount,
-        },
+        })),
       });
     }
   }

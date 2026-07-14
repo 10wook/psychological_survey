@@ -7,6 +7,10 @@ import { scoreAndSaveResponse } from "@/lib/scoreResponse";
 
 type Params = { params: Promise<{ responseId: string }> };
 
+// DB(Supabase, 도쿄)와 가까운 서울 리전에서 실행해 왕복 지연을 줄인다.
+export const preferredRegion = "icn1";
+export const runtime = "nodejs";
+
 // 설문 제출 (문서 6.11). 서버 재검증 → 채점 → 결과 저장을 하나의 트랜잭션으로.
 export const POST = handler(async (_req: NextRequest, { params }: Params) => {
   const user = await requireUser();
@@ -60,18 +64,22 @@ export const POST = handler(async (_req: NextRequest, { params }: Params) => {
     Math.round((now.getTime() - response.startedAt.getTime()) / 1000),
   );
 
-  await prisma.$transaction(async (tx) => {
-    await scoreAndSaveResponse(tx, responseId);
-    await tx.surveyResponse.update({
-      where: { id: responseId },
-      data: {
-        status: "COMPLETED",
-        completedAt: now,
-        lastSavedAt: now,
-        durationSeconds,
-      },
-    });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      await scoreAndSaveResponse(tx, responseId);
+      await tx.surveyResponse.update({
+        where: { id: responseId },
+        data: {
+          status: "COMPLETED",
+          completedAt: now,
+          lastSavedAt: now,
+          durationSeconds,
+        },
+      });
+    },
+    // 원격 DB(예: Vercel↔Supabase) 지연을 고려해 기본 5초보다 넉넉히 잡는다.
+    { maxWait: 15000, timeout: 30000 },
+  );
 
   return ok({ completed: true, showResult: survey.showResult });
 });

@@ -38,6 +38,7 @@ export function RespondForm({ responseId }: { responseId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [submitting, setSubmitting] = useState(false);
+  const [highlightUnanswered, setHighlightUnanswered] = useState(false);
 
   const dirtyRef = useRef<Map<string, number | null>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,15 +67,21 @@ export function RespondForm({ responseId }: { responseId: string }) {
 
   const flush = useCallback(async () => {
     if (dirtyRef.current.size === 0) return;
-    const payload = [...dirtyRef.current.entries()].map(([questionId, rawScore]) => ({
-      questionId,
-      rawScore,
-    }));
-    dirtyRef.current.clear();
+    const entries = [...dirtyRef.current.entries()];
+    const payload = entries.map(([questionId, rawScore]) => ({ questionId, rawScore }));
     setSaveState("saving");
     const res = await api.put(`/api/responses/${responseId}/answers`, { answers: payload });
-    setSaveState(res.ok ? "saved" : "error");
-    if (!res.ok) setError(res.error.message);
+    if (res.ok) {
+      // 저장에 성공한 값만 대기열에서 제거 (그 사이 바뀐 값은 유지)
+      for (const [qid, val] of entries) {
+        if (dirtyRef.current.get(qid) === val) dirtyRef.current.delete(qid);
+      }
+      setSaveState("saved");
+    } else {
+      // 실패 시 대기열을 비우지 않아 다음 저장/제출 때 재시도된다.
+      setSaveState("error");
+      setError(res.error.message);
+    }
   }, [responseId]);
 
   // debounce 저장 (문서 6.10)
@@ -88,6 +95,7 @@ export function RespondForm({ responseId }: { responseId: string }) {
     dirtyRef.current.set(questionId, value);
     setSaveState("saving");
     scheduleSave();
+    if (highlightUnanswered) setHighlightUnanswered(false);
   }
 
   // 페이지 이탈 전 저장 시도
@@ -117,6 +125,8 @@ export function RespondForm({ responseId }: { responseId: string }) {
     await flush();
     if (scale.isRequired && scaleUnanswered.length > 0) {
       setError(`이 척도의 모든 문항에 응답해야 다음으로 이동할 수 있습니다. (남은 ${scaleUnanswered.length}개)`);
+      setHighlightUnanswered(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setError(null);
@@ -131,13 +141,35 @@ export function RespondForm({ responseId }: { responseId: string }) {
   }
 
   async function submit() {
-    await flush();
     setSubmitting(true);
     setError(null);
+    // 제출 직전에 화면의 모든 응답을 통째로 저장해 DB와 화면을 일치시킨다.
+    const fullPayload = Object.entries(answers).map(([questionId, rawScore]) => ({
+      questionId,
+      rawScore,
+    }));
+    setSaveState("saving");
+    const saveRes = await api.put(`/api/responses/${responseId}/answers`, { answers: fullPayload });
+    if (!saveRes.ok) {
+      setSaveState("error");
+      setSubmitting(false);
+      setError(`응답 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요. (${saveRes.error.message})`);
+      return;
+    }
+    dirtyRef.current.clear();
+    setSaveState("saved");
+
     const res = await api.post<{ showResult: boolean }>(`/api/responses/${responseId}/submit`);
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error.message);
+      // 미응답이 있는 첫 척도로 이동시켜 오류를 바로 보이게 함
+      const firstIncomplete = data!.scales.findIndex(
+        (s) => s.isRequired && s.questions.some((q) => answers[q.id] === undefined),
+      );
+      if (firstIncomplete >= 0) setScaleIndex(firstIncomplete);
+      setHighlightUnanswered(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     router.push(`/respond/${responseId}/complete`);
@@ -173,11 +205,15 @@ export function RespondForm({ responseId }: { responseId: string }) {
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-6">
         {error && <Alert variant="error">{error}</Alert>}
 
-        {scale.questions.map((q, idx) => (
-          <Card key={q.id} className="p-4">
+        {scale.questions.map((q, idx) => {
+          const isUnanswered = answers[q.id] === undefined;
+          const flag = highlightUnanswered && scale.isRequired && isUnanswered;
+          return (
+          <Card key={q.id} className={`p-4 ${flag ? "border-red-300 bg-red-50" : ""}`}>
             <p className="mb-3 text-sm font-medium text-slate-800">
               <span className="mr-2 text-slate-400">{idx + 1}.</span>
               {q.content}
+              {flag && <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600">미응답</span>}
             </p>
             <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.content}>
               {q.options.map((o) => {
@@ -202,7 +238,8 @@ export function RespondForm({ responseId }: { responseId: string }) {
               })}
             </div>
           </Card>
-        ))}
+          );
+        })}
 
         <div className="flex items-center justify-between pt-2">
           <Button variant="secondary" onClick={goPrev} disabled={scaleIndex === 0}>

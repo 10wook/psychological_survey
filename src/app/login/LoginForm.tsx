@@ -9,7 +9,7 @@ import { Alert, Button, Card, Field, Input } from "@/components/ui";
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/surveys";
+  const nextParam = params.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,10 @@ export function LoginForm() {
       setError(res.error.message);
       return;
     }
-    router.push(next);
+    // 역할 기반 이동: 관리자/연구자는 관리자 콘솔로 바로 이동
+    const isStaff = res.data.role === "ADMIN" || res.data.role === "RESEARCHER";
+    const target = nextParam ?? (isStaff ? "/admin" : "/surveys");
+    router.push(target);
     router.refresh();
   }
 

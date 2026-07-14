@@ -1,0 +1,382 @@
+// 심리척도 기반 설문·분석 플랫폼 - 데이터 모델
+// 문서 5장의 관계/책임을 유지한다.
+// 세 범주(계정 / 개인 프로필 / 연구 응답)를 논리적으로 분리한다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ===========================================================================
+// 계정 정보
+// ===========================================================================
+
+enum UserRole {
+  RESPONDENT
+  RESEARCHER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  WITHDRAWN
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  role         UserRole   @default(RESPONDENT)
+  status       UserStatus @default(ACTIVE)
+  // 개인정보 열람 권한(연구자 중 일부만 식별정보 접근 가능)
+  canViewPii   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  lastLoginAt  DateTime?
+
+  profile        UserProfile?
+  consentRecords ConsentRecord[]
+  sessions       Session[]
+  participant    Participant?
+  auditLogs      AuditLog[]      @relation("ActorAuditLogs")
+  createdScales  Scale[]         @relation("ScaleCreator")
+  createdSurveys Survey[]        @relation("SurveyCreator")
+
+  @@index([role])
+}
+
+// 세션 (HttpOnly 쿠키 + DB 저장 토큰 → 로그아웃 시 무효화 가능)
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ===========================================================================
+// 개인 프로필 (로그인 정보와 분리)
+// ===========================================================================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNDISCLOSED
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  birthYear Int?
+  birthMonth Int?
+  birthDay  Int?
+  gender    Gender   @default(UNDISCLOSED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ConsentType {
+  PRIVACY_COLLECTION
+  RESEARCH_PARTICIPATION
+  EMAIL_RESULT
+  MARKETING
+}
+
+model ConsentRecord {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentType     ConsentType
+  documentVersion String
+  agreed          Boolean
+  agreedAt        DateTime    @default(now())
+  ipAddress       String?
+  userAgent       String?
+
+  @@index([userId])
+}
+
+// ===========================================================================
+// 척도 (재사용 단위) & 버전
+// ===========================================================================
+
+model Scale {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sourceTitle String?
+  sourceAuthor String?
+  sourceYear  Int?
+  sourceUrl   String?
+  licenseNote String?
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("ScaleCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions ScaleVersion[]
+
+  @@index([isActive])
+}
+
+enum ScaleVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  LOCKED
+}
+
+model ScaleVersion {
+  id                   String             @id @default(cuid())
+  scaleId              String
+  scale                Scale              @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+  versionNumber        Int
+  status               ScaleVersionStatus @default(DRAFT)
+  minScore             Int                @default(1)
+  maxScore             Int                @default(5)
+  requiredByDefault    Boolean            @default(true)
+  shuffleQuestions     Boolean            @default(false)
+  estimatedSeconds     Int?
+  // 해석 기준 등 자유 구성(JSON): 총점 구간별 라벨/설명 등
+  interpretationConfig Json?
+  publishedAt          DateTime?
+  lockedAt             DateTime?
+  createdAt            DateTime           @default(now())
+
+  subfactors   Subfactor[]
+  questions    Question[]
+  surveyScales SurveyScale[]
+  scaleResults ScaleResult[]
+
+  @@unique([scaleId, versionNumber])
+  @@index([status])
+}
+
+model Subfactor {
+  id             String       @id @default(cuid())
+  scaleVersionId String
+  scaleVersion   ScaleVersion @relation(fields: [scaleVersionId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  displayOrder   Int          @default(0)
+
+  questions        Question[]
+  subfactorResults SubfactorResult[]
+
+  @@index([scaleVersionId])
+}
+
+model Question {
+  id             String       @id @default(cuid())
+  scaleVersionId String
+  scaleVersion   ScaleVersion @relation(fields: [scaleVersionId], references: [id], onDelete: Cascade)
+  subfactorId    String?
+  subfactor      Subfactor?   @relation(fields: [subfactorId], references: [id], onDelete: SetNull)
+  code           String
+  content        String
+  isReverse      Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  displayOrder   Int          @default(0)
+  // null 이면 척도 버전의 min/max 를 상속
+  minScore       Int?
+  maxScore       Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  options QuestionOption[]
+  answers Answer[]
+
+  @@unique([scaleVersionId, code])
+  @@index([scaleVersionId])
+  @@index([subfactorId])
+}
+
+model QuestionOption {
+  id           String   @id @default(cuid())
+  questionId   String
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value        Int
+  label        String
+  displayOrder Int      @default(0)
+
+  @@index([questionId])
+}
+
+// ===========================================================================
+// 설문
+// ===========================================================================
+
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  LOCKED
+  ARCHIVED
+}
+
+model Survey {
+  id                  String       @id @default(cuid())
+  title               String
+  description         String?
+  instructions        String?
+  status              SurveyStatus @default(DRAFT)
+  publicId            String       @unique
+  requireLogin        Boolean      @default(true)
+  allowResume         Boolean      @default(true)
+  allowDuplicate      Boolean      @default(false)
+  showResult          Boolean      @default(true)
+  targetResponseCount Int?
+  startAt             DateTime?
+  endAt               DateTime?
+  createdById         String?
+  createdBy           User?        @relation("SurveyCreator", fields: [createdById], references: [id])
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  publishedAt         DateTime?
+  lockedAt            DateTime?
+
+  surveyScales SurveyScale[]
+  responses    SurveyResponse[]
+
+  @@index([status])
+}
+
+model SurveyScale {
+  id               String       @id @default(cuid())
+  surveyId         String
+  survey           Survey       @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  scaleVersionId   String
+  scaleVersion     ScaleVersion @relation(fields: [scaleVersionId], references: [id])
+  displayOrder     Int          @default(0)
+  isRequired       Boolean      @default(true)
+  shuffleQuestions Boolean      @default(false)
+
+  @@unique([surveyId, scaleVersionId])
+  @@index([surveyId])
+}
+
+// ===========================================================================
+// 연구 응답 (직접 식별정보와 분리 - Participant)
+// ===========================================================================
+
+model Participant {
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  anonymousCode String   @unique
+  createdAt     DateTime @default(now())
+
+  responses SurveyResponse[]
+}
+
+enum ResponseStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+model SurveyResponse {
+  id            String         @id @default(cuid())
+  surveyId      String
+  survey        Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant    @relation(fields: [participantId], references: [id])
+  status        ResponseStatus @default(IN_PROGRESS)
+  startedAt     DateTime       @default(now())
+  lastSavedAt   DateTime       @default(now())
+  completedAt   DateTime?
+  durationSeconds Int?
+  // 응답자에게 제시된 실제 척도별 문항 순서(고정). { scaleVersionId: [questionId, ...] }
+  questionOrderJson  Json?
+  clientMetadataJson Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  answers          Answer[]
+  scaleResults     ScaleResult[]
+  subfactorResults SubfactorResult[]
+
+  @@index([surveyId])
+  @@index([participantId])
+  @@index([status])
+}
+
+model Answer {
+  id               String         @id @default(cuid())
+  surveyResponseId String
+  surveyResponse   SurveyResponse @relation(fields: [surveyResponseId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question       @relation(fields: [questionId], references: [id])
+  rawScore         Int?
+  convertedScore   Int?
+  answeredAt       DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([surveyResponseId, questionId])
+  @@index([surveyResponseId])
+  @@index([questionId])
+}
+
+model ScaleResult {
+  id                     String         @id @default(cuid())
+  surveyResponseId       String
+  surveyResponse         SurveyResponse @relation(fields: [surveyResponseId], references: [id], onDelete: Cascade)
+  scaleVersionId         String
+  scaleVersion           ScaleVersion   @relation(fields: [scaleVersionId], references: [id])
+  rawTotal               Int
+  convertedTotal         Int
+  averageScore           Float
+  completedQuestionCount Int
+  calculatedAt           DateTime       @default(now())
+
+  @@unique([surveyResponseId, scaleVersionId])
+  @@index([surveyResponseId])
+}
+
+model SubfactorResult {
+  id                     String         @id @default(cuid())
+  surveyResponseId       String
+  surveyResponse         SurveyResponse @relation(fields: [surveyResponseId], references: [id], onDelete: Cascade)
+  subfactorId            String
+  subfactor              Subfactor      @relation(fields: [subfactorId], references: [id])
+  totalScore             Int
+  averageScore           Float
+  completedQuestionCount Int
+  calculatedAt           DateTime       @default(now())
+
+  @@unique([surveyResponseId, subfactorId])
+  @@index([surveyResponseId])
+}
+
+// ===========================================================================
+// 감사 로그
+// ===========================================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+  entityType  String
+  entityId    String?
+  action      String
+  beforeJson  Json?
+  afterJson   Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}

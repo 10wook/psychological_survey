@@ -23,7 +23,8 @@ export const POST = handler(async (req: NextRequest) => {
   const consents: Array<{ type: ConsentType; agreed: boolean }> = [
     { type: "PRIVACY_COLLECTION", agreed: input.consentPrivacy },
     { type: "RESEARCH_PARTICIPATION", agreed: input.consentResearch },
-    { type: "EMAIL_RESULT", agreed: input.consentEmailResult },
+    { type: "EMAIL_RESULT", agreed: input.consentResultDelivery },
+    { type: "PERSONAL_IDENTIFICATION", agreed: input.consentPersonalIdentification },
     { type: "MARKETING", agreed: input.consentMarketing },
   ];
 
@@ -44,7 +45,6 @@ export const POST = handler(async (req: NextRequest) => {
             birthDay: input.birthDay,
             gender: input.gender,
             phone: input.phone,
-            affiliation: input.affiliation,
           },
         },
         consentRecords: {

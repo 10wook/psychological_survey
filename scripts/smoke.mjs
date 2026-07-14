@@ -59,7 +59,8 @@ const reg = await call(resp, "POST", "/api/auth/register", {
   birthDay: 15,
   gender: "FEMALE",
   phone: "010-1234-5678",
-  affiliation: "테스트대학",
+  consentResultDelivery: true,
+  consentPersonalIdentification: true,
   consentPrivacy: true,
   consentResearch: true,
 });

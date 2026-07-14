@@ -3,8 +3,22 @@ import { z } from "zod";
 // 문서 6.1 / 9.1: 모든 입력은 스키마 검증한다.
 
 export const genderEnum = z.enum(["MALE", "FEMALE", "OTHER", "UNDISCLOSED"]);
+/** UI 선택용: 응답 없음(UNDISCLOSED) 제외 */
+export const genderSelectableEnum = z.enum(["MALE", "FEMALE", "OTHER"], {
+  errorMap: () => ({ message: "성별을 선택하세요." }),
+});
 
 const currentYear = new Date().getFullYear();
+
+/** 이메일·연락처 수집 목적별 동의 (필수) */
+const piiContactConsents = {
+  consentResultDelivery: z.literal(true, {
+    errorMap: () => ({ message: "응답 결과 발송 동의는 필수입니다." }),
+  }),
+  consentPersonalIdentification: z.literal(true, {
+    errorMap: () => ({ message: "개인 식별 동의는 필수입니다." }),
+  }),
+};
 
 export const registerSchema = z
   .object({
@@ -19,16 +33,15 @@ export const registerSchema = z
     birthYear: z.number().int().min(1900).max(currentYear),
     birthMonth: z.number().int().min(1).max(12),
     birthDay: z.number().int().min(1).max(31),
-    gender: genderEnum.default("UNDISCLOSED"),
+    gender: genderSelectableEnum,
     phone: z.string().min(1, "연락처를 입력하세요."),
-    affiliation: z.string().min(1, "소속을 입력하세요."),
+    ...piiContactConsents,
     consentPrivacy: z.literal(true, {
       errorMap: () => ({ message: "개인정보 수집 동의는 필수입니다." }),
     }),
     consentResearch: z.literal(true, {
       errorMap: () => ({ message: "연구 참여 동의는 필수입니다." }),
     }),
-    consentEmailResult: z.boolean().optional().default(false),
     consentMarketing: z.boolean().optional().default(false),
     documentVersion: z.string().default("v1"),
   })
@@ -172,11 +185,11 @@ export const guestStartSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요."),
   email: z.string().email("올바른 이메일을 입력하세요."),
   phone: z.string().min(1, "연락처를 입력하세요."),
-  affiliation: z.string().min(1, "소속을 입력하세요."),
+  ...piiContactConsents,
   birthYear: z.number().int().min(1900).max(currentYear),
   birthMonth: z.number().int().min(1).max(12),
   birthDay: z.number().int().min(1).max(31),
-  gender: genderEnum.default("UNDISCLOSED"),
+  gender: genderSelectableEnum,
 });
 
 // --- 내보내기 ----------------------------------------------------------

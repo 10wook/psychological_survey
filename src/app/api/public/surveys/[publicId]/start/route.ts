@@ -110,11 +110,12 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       guestName: guest.name,
       guestEmail: guest.email,
       guestPhone: guest.phone,
-      guestAffiliation: guest.affiliation,
       guestBirthYear: guest.birthYear,
       guestBirthMonth: guest.birthMonth,
       guestBirthDay: guest.birthDay,
       guestGender: guest.gender,
+      guestConsentResultDelivery: guest.consentResultDelivery,
+      guestConsentPersonalId: guest.consentPersonalIdentification,
     },
   });
 

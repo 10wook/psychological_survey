@@ -27,11 +27,15 @@ const emptyGuest = {
   name: "",
   email: "",
   phone: "",
-  affiliation: "",
   birthYear: "",
   birthMonth: "",
   birthDay: "",
-  gender: "UNDISCLOSED",
+  gender: "",
+};
+
+const emptyGuestConsent = {
+  resultDelivery: false,
+  personalIdentification: false,
 };
 
 export function SurveyIntro({ publicId }: { publicId: string }) {
@@ -40,6 +44,7 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>("intro");
   const [guest, setGuest] = useState(emptyGuest);
+  const [guestConsent, setGuestConsent] = useState(emptyGuestConsent);
   const [error, setError] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -82,8 +87,16 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
 
   async function startGuest() {
     setError(null);
-    if (!guest.name || !guest.email || !guest.phone || !guest.affiliation) {
-      setError("이름, 이메일, 연락처, 소속을 모두 입력해 주세요.");
+    if (!guest.name || !guest.email || !guest.phone) {
+      setError("이름, 이메일, 연락처를 모두 입력해 주세요.");
+      return;
+    }
+    if (!guest.gender) {
+      setError("성별을 선택하세요.");
+      return;
+    }
+    if (!guestConsent.resultDelivery || !guestConsent.personalIdentification) {
+      setError("이메일·연락처 개인정보 수집 및 이용 동의 항목에 모두 체크해야 합니다.");
       return;
     }
     setStarting(true);
@@ -91,11 +104,12 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
-      affiliation: guest.affiliation,
       birthYear: Number(guest.birthYear),
       birthMonth: Number(guest.birthMonth),
       birthDay: Number(guest.birthDay),
       gender: guest.gender,
+      consentResultDelivery: guestConsent.resultDelivery,
+      consentPersonalIdentification: guestConsent.personalIdentification,
     });
     setStarting(false);
     if (!res.ok) {
@@ -178,9 +192,21 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
           <Field label="연락처" htmlFor="g-phone" required>
             <Input id="g-phone" value={guest.phone} onChange={(e) => { setGuest((g) => ({ ...g, phone: e.target.value })); showGuestHint(); }} required />
           </Field>
-          <Field label="소속" htmlFor="g-aff" required>
-            <Input id="g-aff" value={guest.affiliation} onChange={(e) => { setGuest((g) => ({ ...g, affiliation: e.target.value })); showGuestHint(); }} required />
-          </Field>
+          <fieldset className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <legend className="px-1 text-xs font-medium text-slate-600">
+              개인정보 수집 및 이용 동의 (이메일·연락처)
+            </legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={guestConsent.resultDelivery}
+                onChange={(e) => setGuestConsent((c) => ({ ...c, resultDelivery: e.target.checked }))} />
+              <span>[필수] 응답 결과 발송</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={guestConsent.personalIdentification}
+                onChange={(e) => setGuestConsent((c) => ({ ...c, personalIdentification: e.target.checked }))} />
+              <span>[필수] 개인 식별</span>
+            </label>
+          </fieldset>
           <div className="grid grid-cols-3 gap-2">
             <Field label="출생년" htmlFor="g-by" required>
               <Input id="g-by" type="number" min={1900} max={CURRENT_YEAR} placeholder="1998"
@@ -196,11 +222,11 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
             </Field>
           </div>
           <Field label="성별" htmlFor="g-gender" required>
-            <Select id="g-gender" value={guest.gender} onChange={(e) => setGuest((g) => ({ ...g, gender: e.target.value }))}>
+            <Select id="g-gender" value={guest.gender} onChange={(e) => setGuest((g) => ({ ...g, gender: e.target.value }))} required>
+              <option value="" disabled>선택하세요</option>
               <option value="MALE">남성</option>
               <option value="FEMALE">여성</option>
               <option value="OTHER">기타</option>
-              <option value="UNDISCLOSED">응답 안 함</option>
             </Select>
           </Field>
         </div>

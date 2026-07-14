@@ -93,6 +93,7 @@ enum ConsentType {
   PRIVACY_COLLECTION
   RESEARCH_PARTICIPATION
   EMAIL_RESULT
+  PERSONAL_IDENTIFICATION
   MARKETING
 }
 
@@ -297,11 +298,12 @@ model Participant {
   guestName        String?
   guestEmail       String?
   guestPhone       String?
-  guestAffiliation String?
   guestBirthYear   Int?
   guestBirthMonth  Int?
   guestBirthDay    Int?
   guestGender      Gender?
+  guestConsentResultDelivery    Boolean @default(false)
+  guestConsentPersonalId        Boolean @default(false)
   createdAt     DateTime @default(now())
 
   responses SurveyResponse[]

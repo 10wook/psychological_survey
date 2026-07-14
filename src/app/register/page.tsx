@@ -17,19 +17,19 @@ function RegisterForm() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     passwordConfirm: "",
     birthYear: "",
     birthMonth: "",
     birthDay: "",
-    gender: "UNDISCLOSED",
-    phone: "",
-    affiliation: "",
+    gender: "",
   });
   const [consent, setConsent] = useState({
+    resultDelivery: false,
+    personalIdentification: false,
     privacy: false,
     research: false,
-    emailResult: false,
     marketing: false,
   });
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +43,14 @@ function RegisterForm() {
     e.preventDefault();
     setError(null);
 
+    if (!form.gender) {
+      setError("성별을 선택하세요.");
+      return;
+    }
+    if (!consent.resultDelivery || !consent.personalIdentification) {
+      setError("이메일·연락처 개인정보 수집 및 이용 동의 항목에 모두 체크해야 합니다.");
+      return;
+    }
     if (!consent.privacy || !consent.research) {
       setError("필수 동의 항목에 모두 체크해야 가입할 수 있습니다.");
       return;
@@ -56,17 +64,17 @@ function RegisterForm() {
     const res = await api.post("/api/auth/register", {
       name: form.name,
       email: form.email,
+      phone: form.phone,
       password: form.password,
       passwordConfirm: form.passwordConfirm,
       birthYear: Number(form.birthYear),
       birthMonth: Number(form.birthMonth),
       birthDay: Number(form.birthDay),
       gender: form.gender,
-      phone: form.phone,
-      affiliation: form.affiliation,
+      consentResultDelivery: consent.resultDelivery,
+      consentPersonalIdentification: consent.personalIdentification,
       consentPrivacy: consent.privacy,
       consentResearch: consent.research,
-      consentEmailResult: consent.emailResult,
       consentMarketing: consent.marketing,
       documentVersion: "v1",
     });
@@ -94,6 +102,26 @@ function RegisterForm() {
           <Input id="email" type="email" autoComplete="email" value={form.email}
             onChange={(e) => update("email", e.target.value)} required />
         </Field>
+        <Field label="연락처" htmlFor="phone" required>
+          <Input id="phone" value={form.phone} onChange={(e) => update("phone", e.target.value)} required />
+        </Field>
+
+        <fieldset className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <legend className="px-1 text-xs font-medium text-slate-600">
+            개인정보 수집 및 이용 동의 (이메일·연락처)
+          </legend>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5" checked={consent.resultDelivery}
+              onChange={(e) => setConsent((c) => ({ ...c, resultDelivery: e.target.checked }))} />
+            <span>[필수] 응답 결과 발송</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5" checked={consent.personalIdentification}
+              onChange={(e) => setConsent((c) => ({ ...c, personalIdentification: e.target.checked }))} />
+            <span>[필수] 개인 식별</span>
+          </label>
+        </fieldset>
+
         <Field label="비밀번호" htmlFor="password" hint="8자 이상, 영문·숫자 포함" required>
           <Input id="password" type="password" autoComplete="new-password" value={form.password}
             onChange={(e) => update("password", e.target.value)} required />
@@ -118,18 +146,12 @@ function RegisterForm() {
           </Field>
         </div>
         <Field label="성별" htmlFor="gender" required>
-          <Select id="gender" value={form.gender} onChange={(e) => update("gender", e.target.value)}>
+          <Select id="gender" value={form.gender} onChange={(e) => update("gender", e.target.value)} required>
+            <option value="" disabled>선택하세요</option>
             <option value="MALE">남성</option>
             <option value="FEMALE">여성</option>
             <option value="OTHER">기타</option>
-            <option value="UNDISCLOSED">응답 안 함</option>
           </Select>
-        </Field>
-        <Field label="연락처" htmlFor="phone" required>
-          <Input id="phone" value={form.phone} onChange={(e) => update("phone", e.target.value)} required />
-        </Field>
-        <Field label="소속" htmlFor="affiliation" required>
-          <Input id="affiliation" value={form.affiliation} onChange={(e) => update("affiliation", e.target.value)} required />
         </Field>
 
         <fieldset className="space-y-2 rounded-lg border border-slate-200 p-3">
@@ -143,11 +165,6 @@ function RegisterForm() {
             <input type="checkbox" className="mt-0.5" checked={consent.research}
               onChange={(e) => setConsent((c) => ({ ...c, research: e.target.checked }))} />
             <span>[필수] 연구 참여에 동의합니다.</span>
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-0.5" checked={consent.emailResult}
-              onChange={(e) => setConsent((c) => ({ ...c, emailResult: e.target.checked }))} />
-            <span>[선택] 이메일로 결과 수신에 동의합니다.</span>
           </label>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-0.5" checked={consent.marketing}

@@ -39,6 +39,11 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       await cloneVersionContent(tx, latest.id, created.id);
     }
     return created;
+  }, {
+    // 문항/선택지 복제는 순차 쿼리가 많아, 서버리스↔DB 지연 시 기본 5초
+    // 트랜잭션 제한을 넘겨 500이 발생할 수 있어 여유를 둔다.
+    maxWait: 15000,
+    timeout: 30000,
   });
 
   await writeAudit({

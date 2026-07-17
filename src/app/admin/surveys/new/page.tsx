@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
+
+type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM";
 
 interface AvailableVersion {
   id: string;
@@ -26,8 +28,21 @@ export default function NewSurveyPage() {
     targetResponseCount: "",
   });
   const [selected, setSelected] = useState<string[]>([]);
+  const [scaleConfig, setScaleConfig] = useState<
+    Record<string, { displayMode: ScaleDisplayMode; displayLabel: string }>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function configOf(id: string) {
+    return scaleConfig[id] ?? { displayMode: "NAME" as ScaleDisplayMode, displayLabel: "" };
+  }
+  function updateConfig(
+    id: string,
+    patch: Partial<{ displayMode: ScaleDisplayMode; displayLabel: string }>,
+  ) {
+    setScaleConfig((c) => ({ ...c, [id]: { ...configOf(id), ...patch } }));
+  }
 
   useEffect(() => {
     void (async () => {
@@ -56,11 +71,17 @@ export default function NewSurveyPage() {
       allowDuplicate: form.allowDuplicate,
       showResult: form.showResult,
       targetResponseCount: form.targetResponseCount ? Number(form.targetResponseCount) : undefined,
-      scales: selected.map((id, idx) => ({
-        scaleVersionId: id,
-        displayOrder: idx + 1,
-        isRequired: true,
-      })),
+      scales: selected.map((id, idx) => {
+        const cfg = configOf(id);
+        return {
+          scaleVersionId: id,
+          displayOrder: idx + 1,
+          isRequired: true,
+          displayMode: cfg.displayMode,
+          displayLabel:
+            cfg.displayMode === "CUSTOM" ? cfg.displayLabel || undefined : undefined,
+        };
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -94,11 +115,12 @@ export default function NewSurveyPage() {
               <Alert variant="warning">연결 가능한 게시된 척도 버전이 없습니다. 먼저 척도를 게시하세요.</Alert>
             ) : (
               <ul className="space-y-2">
-                {versions.map((v, idx) => {
+                {versions.map((v) => {
                   const order = selected.indexOf(v.id);
+                  const cfg = configOf(v.id);
                   return (
-                    <li key={v.id}>
-                      <label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+                    <li key={v.id} className="rounded-lg border border-slate-200 p-3">
+                      <label className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={order >= 0} onChange={() => toggle(v.id)} />
                         <span className="flex-1">
                           {v.scale.name} <span className="text-slate-400">v{v.versionNumber} · 문항 {v._count.questions}개</span>
@@ -107,6 +129,28 @@ export default function NewSurveyPage() {
                           <span className="rounded bg-brand-50 px-2 py-0.5 text-xs text-brand-700">순서 {order + 1}</span>
                         )}
                       </label>
+                      {order >= 0 && (
+                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                          <p className="text-xs font-medium text-slate-500">응답자에게 표시할 이름</p>
+                          <Select
+                            value={cfg.displayMode}
+                            onChange={(e) =>
+                              updateConfig(v.id, { displayMode: e.target.value as ScaleDisplayMode })
+                            }
+                          >
+                            <option value="NAME">척도 제목 그대로</option>
+                            <option value="DESCRIPTION">척도 설명으로 표시</option>
+                            <option value="CUSTOM">직접 입력 (블라인드)</option>
+                          </Select>
+                          {cfg.displayMode === "CUSTOM" && (
+                            <Input
+                              placeholder="응답자에게 보일 이름 (예: 파트 A)"
+                              value={cfg.displayLabel}
+                              onChange={(e) => updateConfig(v.id, { displayLabel: e.target.value })}
+                            />
+                          )}
+                        </div>
+                      )}
                     </li>
                   );
                 })}

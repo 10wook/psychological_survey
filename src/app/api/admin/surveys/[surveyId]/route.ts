@@ -56,6 +56,8 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
           displayOrder: s.displayOrder ?? idx + 1,
           isRequired: s.isRequired ?? true,
           shuffleQuestions: s.shuffleQuestions ?? false,
+          displayMode: s.displayMode ?? "NAME",
+          displayLabel: s.displayMode === "CUSTOM" ? (s.displayLabel ?? null) : null,
         })),
       });
     }

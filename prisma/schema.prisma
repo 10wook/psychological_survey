@@ -270,15 +270,24 @@ model Survey {
   @@index([status])
 }
 
+// 응답자에게 척도를 어떤 이름으로 노출할지. 블라인드 설문 등을 위해 선택.
+enum ScaleDisplayMode {
+  NAME // 척도 제목(Scale.name) 노출
+  DESCRIPTION // 척도 설명(Scale.description) 노출
+  CUSTOM // 직접 입력한 라벨(displayLabel) 노출
+}
+
 model SurveyScale {
-  id               String       @id @default(cuid())
+  id               String           @id @default(cuid())
   surveyId         String
-  survey           Survey       @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  survey           Survey           @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   scaleVersionId   String
-  scaleVersion     ScaleVersion @relation(fields: [scaleVersionId], references: [id])
-  displayOrder     Int          @default(0)
-  isRequired       Boolean      @default(true)
-  shuffleQuestions Boolean      @default(false)
+  scaleVersion     ScaleVersion     @relation(fields: [scaleVersionId], references: [id])
+  displayOrder     Int              @default(0)
+  isRequired       Boolean          @default(true)
+  shuffleQuestions Boolean          @default(false)
+  displayMode      ScaleDisplayMode @default(NAME)
+  displayLabel     String?
 
   @@unique([surveyId, scaleVersionId])
   @@index([surveyId])

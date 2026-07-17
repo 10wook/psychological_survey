@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { handler, notFound, ok } from "@/lib/http";
 import { assertCanAccessResponse } from "@/lib/responseAuth";
+import { scaleDisplayLabel } from "@/lib/scaleDisplay";
 
 type Params = { params: Promise<{ responseId: string }> };
 
@@ -69,7 +70,11 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
     return {
       surveyScaleId: ss.id,
       scaleVersionId: version.id,
-      scaleName: version.scale.name,
+      scaleName: scaleDisplayLabel(ss.displayMode, {
+        name: version.scale.name,
+        description: version.scale.description,
+        displayLabel: ss.displayLabel,
+      }),
       isRequired: ss.isRequired,
       questions,
     };

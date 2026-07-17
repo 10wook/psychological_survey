@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { handler, notFound, ok } from "@/lib/http";
+import { scaleDisplayLabel } from "@/lib/scaleDisplay";
 
 type Params = { params: Promise<{ publicId: string }> };
 
@@ -58,8 +59,12 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       totalQuestions,
       estimatedSeconds,
       scales: survey.surveyScales.map((ss) => ({
-        name: ss.scaleVersion.scale.name,
-        description: ss.scaleVersion.scale.description,
+        id: ss.id,
+        name: scaleDisplayLabel(ss.displayMode, {
+          name: ss.scaleVersion.scale.name,
+          description: ss.scaleVersion.scale.description,
+          displayLabel: ss.displayLabel,
+        }),
         questionCount: ss.scaleVersion._count.questions,
       })),
     },

@@ -143,11 +143,15 @@ export const bulkQuestionSchema = z.object({
 });
 
 // --- 설문 --------------------------------------------------------------
+export const scaleDisplayModeEnum = z.enum(["NAME", "DESCRIPTION", "CUSTOM"]);
+
 export const surveyScaleInputSchema = z.object({
   scaleVersionId: z.string().min(1),
   displayOrder: z.number().int().optional(),
   isRequired: z.boolean().optional(),
   shuffleQuestions: z.boolean().optional(),
+  displayMode: scaleDisplayModeEnum.optional(),
+  displayLabel: z.string().max(200).nullish(),
 });
 
 export const createSurveySchema = z.object({

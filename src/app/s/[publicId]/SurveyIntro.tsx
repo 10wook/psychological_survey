@@ -15,7 +15,7 @@ interface Intro {
   ended: boolean;
   totalQuestions: number;
   estimatedSeconds: number;
-  scales: Array<{ name: string; questionCount: number }>;
+  scales: Array<{ id: string; name: string; questionCount: number }>;
 }
 
 type Step = "intro" | "choose" | "guest-form";
@@ -263,7 +263,7 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
         <p className="text-sm font-medium text-slate-700">포함된 척도</p>
         <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
           {intro.scales.map((s) => (
-            <li key={s.name}>
+            <li key={s.id}>
               {s.name} <span className="text-slate-400">({s.questionCount}문항)</span>
             </li>
           ))}

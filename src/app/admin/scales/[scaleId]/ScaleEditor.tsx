@@ -391,7 +391,12 @@ function QuestionManager({
       isRequired: draft.isRequired,
       minSelect: draft.type === "MULTIPLE" && draft.minSelect ? Number(draft.minSelect) : null,
       maxSelect: draft.type === "MULTIPLE" && draft.maxSelect ? Number(draft.maxSelect) : null,
-      options: draft.type !== "TEXT" ? draft.options : undefined,
+      // 보기(옵션)는 단일/다중 선택 문항에서만 직접 입력한다.
+      // 리커트는 서버가 min~max 점수 라벨을 자동 생성하므로 옵션을 보내지 않는다.
+      options:
+        draft.type === "SINGLE" || draft.type === "MULTIPLE"
+          ? draft.options
+          : undefined,
     });
     if (!res.ok) setError(res.error.message);
     else {

@@ -1,22 +1,29 @@
 import type { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { badRequest, conflict, forbidden, handler, notFound, ok, unauthorized } from "@/lib/http";
-import { buildQuestionOrder } from "@/lib/shuffle";
+import { buildOrderPlan, type OrderInputScale, type QuestionOrderMode } from "@/lib/questionOrder";
 import { formatAnonymousCode } from "@/lib/ids";
 import { guestStartSchema } from "@/lib/validation";
 import { generateAccessToken, setResponseAccessCookie } from "@/lib/responseAuth";
 
 type Params = { params: Promise<{ publicId: string }> };
 
+interface StartScale {
+  id: string;
+  scaleVersionId: string;
+  isRequired: boolean;
+  shuffleQuestions: boolean;
+  includeInGlobalShuffle: boolean;
+  scaleVersion: { shuffleQuestions: boolean; questions: Array<{ id: string; isActive: boolean; displayOrder: number }> };
+}
+
 async function createResponseWithOrder(
   surveyId: string,
   participantId: string,
-  surveyScales: Array<{
-    scaleVersionId: string;
-    shuffleQuestions: boolean;
-    scaleVersion: { shuffleQuestions: boolean; questions: Array<{ id: string; isActive: boolean; displayOrder: number }> };
-  }>,
+  orderMode: QuestionOrderMode,
+  surveyScales: StartScale[],
   accessToken?: string,
 ) {
   const response = await prisma.surveyResponse.create({
@@ -28,19 +35,23 @@ async function createResponseWithOrder(
     },
   });
 
-  const questionOrder: Record<string, string[]> = {};
-  for (const ss of surveyScales) {
-    const shuffleEnabled = ss.shuffleQuestions || ss.scaleVersion.shuffleQuestions;
-    questionOrder[ss.scaleVersionId] = buildQuestionOrder(
-      ss.scaleVersion.questions,
-      shuffleEnabled,
-      `${response.id}:${ss.scaleVersionId}`,
-    );
-  }
+  const inputs: OrderInputScale[] = surveyScales.map((ss) => ({
+    surveyScaleId: ss.id,
+    scaleVersionId: ss.scaleVersionId,
+    isRequired: ss.isRequired,
+    shuffleQuestions: ss.shuffleQuestions,
+    includeInGlobalShuffle: ss.includeInGlobalShuffle,
+    scaleVersion: {
+      shuffleQuestions: ss.scaleVersion.shuffleQuestions,
+      questions: ss.scaleVersion.questions,
+    },
+  }));
+
+  const plan = buildOrderPlan(orderMode, inputs, response.id);
 
   await prisma.surveyResponse.update({
     where: { id: response.id },
-    data: { questionOrderJson: questionOrder },
+    data: { questionOrderJson: plan as unknown as Prisma.InputJsonValue },
   });
 
   return response;
@@ -92,7 +103,12 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       if (completed) throw conflict("이미 완료한 설문입니다. 중복 응답이 허용되지 않습니다.");
     }
 
-    const response = await createResponseWithOrder(survey.id, participant.id, survey.surveyScales);
+    const response = await createResponseWithOrder(
+      survey.id,
+      participant.id,
+      survey.questionOrderMode,
+      survey.surveyScales,
+    );
     return ok({ responseId: response.id, resumed: false });
   }
 
@@ -123,6 +139,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const response = await createResponseWithOrder(
     survey.id,
     participant.id,
+    survey.questionOrderMode,
     survey.surveyScales,
     accessToken,
   );

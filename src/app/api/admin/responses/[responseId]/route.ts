@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { canViewPii, requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
+import { presentedIndexMap } from "@/lib/questionOrder";
 
 type Params = { params: Promise<{ responseId: string }> };
 
@@ -35,12 +36,10 @@ export const GET = handler(async (req: NextRequest, { params }: Params) => {
   if (!response) throw notFound("응답을 찾을 수 없습니다.");
 
   const answerMap = new Map(response.answers.map((a) => [a.questionId, a]));
-  const order = (response.questionOrderJson ?? {}) as Record<string, string[]>;
+  const presentedIndex = presentedIndexMap(response.questionOrderJson);
 
   const scales = response.survey.surveyScales.map((ss) => {
     const version = ss.scaleVersion;
-    const presented = order[ss.scaleVersionId] ?? [];
-    const presentedIndex = new Map(presented.map((id, i) => [id, i + 1]));
     const questions = version.questions
       .filter((q) => q.isActive)
       .map((q) => {

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { LogoutButton } from "@/components/LogoutButton";
 
 const NAV = [
   { href: "/admin", label: "대시보드" },
@@ -38,17 +37,11 @@ export default async function AdminLayout({
           </nav>
         </aside>
         <div className="flex-1">
-          <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
-            <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
-              ← 사이트로
-            </Link>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400">
-                {user.email} ({user.role})
-              </span>
-              <LogoutButton />
-            </div>
-          </header>
+          <div className="flex h-10 items-center justify-end border-b border-slate-200 bg-white px-4">
+            <span className="text-xs text-slate-400">
+              {user.email} ({user.role})
+            </span>
+          </div>
           <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
         </div>
       </div>

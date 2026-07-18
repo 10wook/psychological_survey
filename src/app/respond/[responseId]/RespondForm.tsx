@@ -21,9 +21,9 @@ interface QuestionDTO {
   options: Array<{ value: number; label: string }>;
 }
 interface ScaleDTO {
-  surveyScaleId: string;
-  scaleVersionId: string;
-  scaleName: string;
+  surveyScaleId: string | null;
+  scaleVersionId: string | null;
+  scaleName: string | null;
   isRequired: boolean;
   questions: QuestionDTO[];
 }
@@ -234,7 +234,7 @@ export function RespondForm({ responseId }: { responseId: string }) {
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-900">{scale.scaleName}</span>
+            <span className="font-medium text-slate-900">{scale.scaleName ?? "설문 문항"}</span>
             <span className="text-xs text-slate-400" aria-live="polite">
               {saveLabel[saveState]}
             </span>

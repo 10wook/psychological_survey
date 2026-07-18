@@ -264,10 +264,18 @@ model Survey {
   publishedAt         DateTime?
   lockedAt            DateTime?
 
+  questionOrderMode   QuestionOrderMode @default(SCALE_GROUPED)
+
   surveyScales SurveyScale[]
   responses    SurveyResponse[]
 
   @@index([status])
+}
+
+// 문항 제시 방식(설문 단위).
+enum QuestionOrderMode {
+  SCALE_GROUPED // 척도별로 묶어서 순서대로 제시(척도 내 무작위는 SurveyScale.shuffleQuestions로 제어)
+  SHUFFLE_ALL // 전체 섞기 대상 척도들의 문항을 하나로 합쳐 무작위 제시
 }
 
 // 응답자에게 척도를 어떤 이름으로 노출할지. 블라인드 설문 등을 위해 선택.
@@ -286,6 +294,8 @@ model SurveyScale {
   displayOrder     Int              @default(0)
   isRequired       Boolean          @default(true)
   shuffleQuestions Boolean          @default(false)
+  // 설문의 questionOrderMode 가 SHUFFLE_ALL 일 때, 이 척도의 문항을 전체 셔플 풀에 포함할지.
+  includeInGlobalShuffle Boolean    @default(true)
   displayMode      ScaleDisplayMode @default(NAME)
   displayLabel     String?
 

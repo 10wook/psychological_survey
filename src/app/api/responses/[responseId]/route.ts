@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { handler, notFound, ok } from "@/lib/http";
 import { assertCanAccessResponse } from "@/lib/responseAuth";
 import { scaleDisplayLabel } from "@/lib/scaleDisplay";
+import { readOrderSections, type OrderInputScale } from "@/lib/questionOrder";
 
 type Params = { params: Promise<{ responseId: string }> };
 
@@ -38,18 +39,43 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
   if (!response) throw notFound("응답을 찾을 수 없습니다.");
   await assertCanAccessResponse(response);
 
-  const order = (response.questionOrderJson ?? {}) as Record<string, string[]>;
   const answerMap = new Map(response.answers.map((a) => [a.questionId, a]));
+  const surveyScales = response.survey.surveyScales;
 
-  const scales = response.survey.surveyScales.map((ss) => {
-    const version = ss.scaleVersion;
-    const questionById = new Map(version.questions.map((q) => [q.id, q]));
-    const orderedIds = order[ss.scaleVersionId] ??
-      version.questions.filter((q) => q.isActive).map((q) => q.id);
+  // 문항 ID → { 문항, 소속 척도 } 전역 매핑 (전체 셔플 병합 섹션 조회용)
+  type LoadedQuestion = (typeof surveyScales)[number]["scaleVersion"]["questions"][number];
+  const questionById = new Map<string, LoadedQuestion>();
+  const scaleLabelById = new Map<string, string>();
+  for (const ss of surveyScales) {
+    scaleLabelById.set(
+      ss.id,
+      scaleDisplayLabel(ss.displayMode, {
+        name: ss.scaleVersion.scale.name,
+        description: ss.scaleVersion.scale.description,
+        displayLabel: ss.displayLabel,
+      }),
+    );
+    for (const q of ss.scaleVersion.questions) questionById.set(q.id, q);
+  }
 
-    const questions = orderedIds
+  const orderInputs: OrderInputScale[] = surveyScales.map((ss) => ({
+    surveyScaleId: ss.id,
+    scaleVersionId: ss.scaleVersionId,
+    isRequired: ss.isRequired,
+    shuffleQuestions: ss.shuffleQuestions,
+    includeInGlobalShuffle: ss.includeInGlobalShuffle,
+    scaleVersion: {
+      shuffleQuestions: ss.scaleVersion.shuffleQuestions,
+      questions: ss.scaleVersion.questions,
+    },
+  }));
+
+  const sections = readOrderSections(response.questionOrderJson, orderInputs);
+
+  const scales = sections.map((section) => {
+    const questions = section.questionIds
       .map((id) => questionById.get(id))
-      .filter((q): q is NonNullable<typeof q> => Boolean(q) && q!.isActive)
+      .filter((q): q is LoadedQuestion => Boolean(q) && q!.isActive)
       .map((q) => {
         const a = answerMap.get(q.id);
         return {
@@ -68,14 +94,13 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       });
 
     return {
-      surveyScaleId: ss.id,
-      scaleVersionId: version.id,
-      scaleName: scaleDisplayLabel(ss.displayMode, {
-        name: version.scale.name,
-        description: version.scale.description,
-        displayLabel: ss.displayLabel,
-      }),
-      isRequired: ss.isRequired,
+      surveyScaleId: section.surveyScaleId,
+      scaleVersionId: section.scaleVersionId,
+      // 병합(전체 셔플) 섹션은 척도명을 노출하지 않는다.
+      scaleName: section.surveyScaleId
+        ? scaleLabelById.get(section.surveyScaleId) ?? null
+        : null,
+      isRequired: section.isRequired,
       questions,
     };
   });

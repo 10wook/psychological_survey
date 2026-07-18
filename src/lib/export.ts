@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
 import type { ExportOptions } from "@/lib/validation";
+import { presentedIndexMap } from "@/lib/questionOrder";
 
 // ===========================================================================
 // 데이터 내보내기 (문서 6.16 / 11장). Wide/Long, CSV/XLSX, 코드북.
@@ -107,11 +108,7 @@ async function gatherData(surveyId: string, opts: ExportOptions): Promise<Export
 
   const rows: ExportRow[] = responses.map((r) => {
     const answerMap = new Map(r.answers.map((a) => [a.questionId, a]));
-    const order = (r.questionOrderJson ?? {}) as Record<string, string[]>;
-    const presentedIndex = new Map<string, number>();
-    for (const ids of Object.values(order)) {
-      ids.forEach((id, i) => presentedIndex.set(id, i + 1));
-    }
+    const presentedIndex = presentedIndexMap(r.questionOrderJson);
 
     const raw: Record<string, number | null> = {};
     const converted: Record<string, number | null> = {};

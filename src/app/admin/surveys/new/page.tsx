@@ -6,6 +6,14 @@ import { api } from "@/lib/client";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
 
 type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM";
+type QuestionOrderMode = "SCALE_GROUPED" | "SHUFFLE_ALL";
+
+interface ScaleConfig {
+  displayMode: ScaleDisplayMode;
+  displayLabel: string;
+  shuffleQuestions: boolean;
+  includeInGlobalShuffle: boolean;
+}
 
 interface AvailableVersion {
   id: string;
@@ -26,21 +34,24 @@ export default function NewSurveyPage() {
     allowDuplicate: false,
     showResult: true,
     targetResponseCount: "",
+    questionOrderMode: "SCALE_GROUPED" as QuestionOrderMode,
   });
   const [selected, setSelected] = useState<string[]>([]);
-  const [scaleConfig, setScaleConfig] = useState<
-    Record<string, { displayMode: ScaleDisplayMode; displayLabel: string }>
-  >({});
+  const [scaleConfig, setScaleConfig] = useState<Record<string, ScaleConfig>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  function configOf(id: string) {
-    return scaleConfig[id] ?? { displayMode: "NAME" as ScaleDisplayMode, displayLabel: "" };
+  function configOf(id: string): ScaleConfig {
+    return (
+      scaleConfig[id] ?? {
+        displayMode: "NAME",
+        displayLabel: "",
+        shuffleQuestions: false,
+        includeInGlobalShuffle: true,
+      }
+    );
   }
-  function updateConfig(
-    id: string,
-    patch: Partial<{ displayMode: ScaleDisplayMode; displayLabel: string }>,
-  ) {
+  function updateConfig(id: string, patch: Partial<ScaleConfig>) {
     setScaleConfig((c) => ({ ...c, [id]: { ...configOf(id), ...patch } }));
   }
 
@@ -70,6 +81,7 @@ export default function NewSurveyPage() {
       requireLogin: form.requireLogin,
       allowDuplicate: form.allowDuplicate,
       showResult: form.showResult,
+      questionOrderMode: form.questionOrderMode,
       targetResponseCount: form.targetResponseCount ? Number(form.targetResponseCount) : undefined,
       scales: selected.map((id, idx) => {
         const cfg = configOf(id);
@@ -77,6 +89,8 @@ export default function NewSurveyPage() {
           scaleVersionId: id,
           displayOrder: idx + 1,
           isRequired: true,
+          shuffleQuestions: cfg.shuffleQuestions,
+          includeInGlobalShuffle: cfg.includeInGlobalShuffle,
           displayMode: cfg.displayMode,
           displayLabel:
             cfg.displayMode === "CUSTOM" ? cfg.displayLabel || undefined : undefined,
@@ -130,24 +144,47 @@ export default function NewSurveyPage() {
                         )}
                       </label>
                       {order >= 0 && (
-                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                          <p className="text-xs font-medium text-slate-500">응답자에게 표시할 이름</p>
-                          <Select
-                            value={cfg.displayMode}
-                            onChange={(e) =>
-                              updateConfig(v.id, { displayMode: e.target.value as ScaleDisplayMode })
-                            }
-                          >
-                            <option value="NAME">척도 제목 그대로</option>
-                            <option value="DESCRIPTION">척도 설명으로 표시</option>
-                            <option value="CUSTOM">직접 입력 (블라인드)</option>
-                          </Select>
-                          {cfg.displayMode === "CUSTOM" && (
-                            <Input
-                              placeholder="응답자에게 보일 이름 (예: 파트 A)"
-                              value={cfg.displayLabel}
-                              onChange={(e) => updateConfig(v.id, { displayLabel: e.target.value })}
-                            />
+                        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-slate-500">응답자에게 표시할 이름</p>
+                            <Select
+                              value={cfg.displayMode}
+                              onChange={(e) =>
+                                updateConfig(v.id, { displayMode: e.target.value as ScaleDisplayMode })
+                              }
+                            >
+                              <option value="NAME">척도 제목 그대로</option>
+                              <option value="DESCRIPTION">척도 설명으로 표시</option>
+                              <option value="CUSTOM">직접 입력 (블라인드)</option>
+                            </Select>
+                            {cfg.displayMode === "CUSTOM" && (
+                              <Input
+                                placeholder="응답자에게 보일 이름 (예: 파트 A)"
+                                value={cfg.displayLabel}
+                                onChange={(e) => updateConfig(v.id, { displayLabel: e.target.value })}
+                              />
+                            )}
+                          </div>
+                          {form.questionOrderMode === "SCALE_GROUPED" ? (
+                            <label className="flex items-center gap-2 text-xs text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={cfg.shuffleQuestions}
+                                onChange={(e) => updateConfig(v.id, { shuffleQuestions: e.target.checked })}
+                              />
+                              이 척도 안에서 문항 순서 무작위
+                            </label>
+                          ) : (
+                            <label className="flex items-center gap-2 text-xs text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={cfg.includeInGlobalShuffle}
+                                onChange={(e) =>
+                                  updateConfig(v.id, { includeInGlobalShuffle: e.target.checked })
+                                }
+                              />
+                              전체 섞기에 이 척도 포함
+                            </label>
                           )}
                         </div>
                       )}
@@ -157,6 +194,40 @@ export default function NewSurveyPage() {
               </ul>
             )}
           </div>
+
+          <fieldset className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <legend className="px-1 text-xs font-medium text-slate-500">문항 제시 방식</legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                className="mt-0.5"
+                name="questionOrderMode"
+                checked={form.questionOrderMode === "SCALE_GROUPED"}
+                onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SCALE_GROUPED" }))}
+              />
+              <span>
+                척도별로 묶어서 제시
+                <span className="block text-xs text-slate-400">
+                  같은 척도 문항끼리 모아서 순서대로. 척도별로 &quot;척도 내 무작위&quot;를 켤 수 있습니다.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                className="mt-0.5"
+                name="questionOrderMode"
+                checked={form.questionOrderMode === "SHUFFLE_ALL"}
+                onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SHUFFLE_ALL" }))}
+              />
+              <span>
+                전체 문항 섞기
+                <span className="block text-xs text-slate-400">
+                  &quot;전체 섞기에 포함&quot;된 척도들의 문항을 하나로 합쳐 무작위 제시. 포함하지 않은 척도는 따로 묶여서 나옵니다.
+                </span>
+              </span>
+            </label>
+          </fieldset>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="목표 응답 수" htmlFor="target">

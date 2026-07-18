@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { SiteHeader } from "@/components/SiteHeader";
 import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +38,6 @@ export default async function MySurveysPage() {
 
   return (
     <div className="min-h-screen">
-      <SiteHeader />
       <main className="mx-auto max-w-3xl space-y-8 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900">내 설문</h1>
 

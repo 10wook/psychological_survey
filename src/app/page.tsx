@@ -1,4 +1,3 @@
-import { SiteHeader } from "@/components/SiteHeader";
 import { getCurrentUser } from "@/lib/auth";
 import { LinkButton } from "@/components/ui";
 
@@ -8,7 +7,6 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen">
-      <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-16">
         <div className="text-center">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">

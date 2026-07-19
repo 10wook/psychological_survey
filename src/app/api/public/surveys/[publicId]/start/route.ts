@@ -3,7 +3,14 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { badRequest, conflict, forbidden, handler, notFound, ok, unauthorized } from "@/lib/http";
-import { buildOrderPlan, type OrderInputScale, type QuestionOrderMode } from "@/lib/questionOrder";
+import {
+  buildOrderPlan,
+  orderSurveyScales,
+  type OrderInputScale,
+  type QuestionOrderMode,
+  type ScaleOrderMode,
+  type ScalePinPosition,
+} from "@/lib/questionOrder";
 import { formatAnonymousCode } from "@/lib/ids";
 import { guestStartSchema } from "@/lib/validation";
 import { generateAccessToken, setResponseAccessCookie } from "@/lib/responseAuth";
@@ -16,13 +23,16 @@ interface StartScale {
   isRequired: boolean;
   shuffleQuestions: boolean;
   includeInGlobalShuffle: boolean;
+  displayOrder: number;
+  pinPosition: ScalePinPosition;
   scaleVersion: { shuffleQuestions: boolean; questions: Array<{ id: string; isActive: boolean; displayOrder: number }> };
 }
 
 async function createResponseWithOrder(
   surveyId: string,
   participantId: string,
-  orderMode: QuestionOrderMode,
+  questionOrderMode: QuestionOrderMode,
+  scaleOrderMode: ScaleOrderMode,
   surveyScales: StartScale[],
   accessToken?: string,
 ) {
@@ -35,7 +45,10 @@ async function createResponseWithOrder(
     },
   });
 
-  const inputs: OrderInputScale[] = surveyScales.map((ss) => ({
+  // 척도(섹션) 순서: 위치 고정 + 중간 그룹 수동/셔플
+  const orderedScales = orderSurveyScales(surveyScales, scaleOrderMode, response.id);
+
+  const inputs: OrderInputScale[] = orderedScales.map((ss) => ({
     surveyScaleId: ss.id,
     scaleVersionId: ss.scaleVersionId,
     isRequired: ss.isRequired,
@@ -47,7 +60,7 @@ async function createResponseWithOrder(
     },
   }));
 
-  const plan = buildOrderPlan(orderMode, inputs, response.id);
+  const plan = buildOrderPlan(questionOrderMode, inputs, response.id);
 
   await prisma.surveyResponse.update({
     where: { id: response.id },
@@ -107,6 +120,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       survey.id,
       participant.id,
       survey.questionOrderMode,
+      survey.scaleOrderMode,
       survey.surveyScales,
     );
     return ok({ responseId: response.id, resumed: false });
@@ -140,6 +154,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
     survey.id,
     participant.id,
     survey.questionOrderMode,
+    survey.scaleOrderMode,
     survey.surveyScales,
     accessToken,
   );

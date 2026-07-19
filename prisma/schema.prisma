@@ -142,14 +142,27 @@ enum ScaleVersionStatus {
   LOCKED
 }
 
+// 척도 유형. 문항 추가 시 기본 유형으로 쓰이며, 리커트 min/max·라벨 노출 여부 결정.
+// MIXED 이면 문항별로 유형을 자유롭게 고른다.
+enum ScaleType {
+  LIKERT
+  SINGLE
+  MULTIPLE
+  TEXT
+  MIXED
+}
+
 model ScaleVersion {
   id                   String             @id @default(cuid())
   scaleId              String
   scale                Scale              @relation(fields: [scaleId], references: [id], onDelete: Cascade)
   versionNumber        Int
   status               ScaleVersionStatus @default(DRAFT)
+  scaleType            ScaleType          @default(LIKERT)
   minScore             Int                @default(1)
   maxScore             Int                @default(5)
+  // 리커트 점수별 라벨 배열. 길이 = maxScore - minScore + 1. 예: ["전혀 아니다", ..., "매우 그렇다"]
+  likertLabels         Json?
   requiredByDefault    Boolean            @default(true)
   shuffleQuestions     Boolean            @default(false)
   estimatedSeconds     Int?
@@ -265,6 +278,7 @@ model Survey {
   lockedAt            DateTime?
 
   questionOrderMode   QuestionOrderMode @default(SCALE_GROUPED)
+  scaleOrderMode      ScaleOrderMode    @default(FIXED)
 
   surveyScales SurveyScale[]
   responses    SurveyResponse[]
@@ -278,11 +292,24 @@ enum QuestionOrderMode {
   SHUFFLE_ALL // 전체 섞기 대상 척도들의 문항을 하나로 합쳐 무작위 제시
 }
 
+// 척도(섹션) 제시 순서 방식.
+enum ScaleOrderMode {
+  FIXED // 연구자가 정한 displayOrder 순서 유지
+  SHUFFLE // pinPosition=NONE 인 척도들만 응답 시작 시 무작위 셔플
+}
+
 // 응답자에게 척도를 어떤 이름으로 노출할지. 블라인드 설문 등을 위해 선택.
 enum ScaleDisplayMode {
   NAME // 척도 제목(Scale.name) 노출
   DESCRIPTION // 척도 설명(Scale.description) 노출
   CUSTOM // 직접 입력한 라벨(displayLabel) 노출
+}
+
+// 척도 위치 고정. FIRST/LAST 는 scaleOrderMode=SHUFFLE 이어도 해당 위치에 고정.
+enum ScalePinPosition {
+  NONE
+  FIRST
+  LAST
 }
 
 model SurveyScale {
@@ -296,6 +323,7 @@ model SurveyScale {
   shuffleQuestions Boolean          @default(false)
   // 설문의 questionOrderMode 가 SHUFFLE_ALL 일 때, 이 척도의 문항을 전체 셔플 풀에 포함할지.
   includeInGlobalShuffle Boolean    @default(true)
+  pinPosition      ScalePinPosition @default(NONE)
   displayMode      ScaleDisplayMode @default(NAME)
   displayLabel     String?
 

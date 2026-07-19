@@ -56,6 +56,8 @@ export const loginSchema = z.object({
 });
 
 // --- 척도 ---------------------------------------------------------------
+export const scaleTypeEnum = z.enum(["LIKERT", "SINGLE", "MULTIPLE", "TEXT", "MIXED"]);
+
 export const createScaleSchema = z.object({
   name: z.string().min(1, "척도명을 입력하세요."),
   description: z.string().optional(),
@@ -64,8 +66,11 @@ export const createScaleSchema = z.object({
   sourceYear: z.number().int().optional(),
   sourceUrl: z.string().url().optional().or(z.literal("")),
   licenseNote: z.string().optional(),
+  scaleType: scaleTypeEnum.default("LIKERT"),
   minScore: z.number().int().default(1),
   maxScore: z.number().int().default(5),
+  // 리커트 점수별 라벨. LIKERT/MIXED 에서만 사용. 빈 문자열은 숫자로 폴백.
+  likertLabels: z.array(z.string()).optional(),
 });
 
 export const updateScaleSchema = z.object({
@@ -80,8 +85,10 @@ export const updateScaleSchema = z.object({
 
 // --- 척도 버전 ----------------------------------------------------------
 export const updateScaleVersionSchema = z.object({
+  scaleType: scaleTypeEnum.optional(),
   minScore: z.number().int().optional(),
   maxScore: z.number().int().optional(),
+  likertLabels: z.array(z.string()).nullish(),
   requiredByDefault: z.boolean().optional(),
   shuffleQuestions: z.boolean().optional(),
   estimatedSeconds: z.number().int().nonnegative().optional(),
@@ -146,6 +153,8 @@ export const bulkQuestionSchema = z.object({
 export const scaleDisplayModeEnum = z.enum(["NAME", "DESCRIPTION", "CUSTOM"]);
 
 export const questionOrderModeEnum = z.enum(["SCALE_GROUPED", "SHUFFLE_ALL"]);
+export const scaleOrderModeEnum = z.enum(["FIXED", "SHUFFLE"]);
+export const scalePinPositionEnum = z.enum(["NONE", "FIRST", "LAST"]);
 
 export const surveyScaleInputSchema = z.object({
   scaleVersionId: z.string().min(1),
@@ -153,6 +162,7 @@ export const surveyScaleInputSchema = z.object({
   isRequired: z.boolean().optional(),
   shuffleQuestions: z.boolean().optional(),
   includeInGlobalShuffle: z.boolean().optional(),
+  pinPosition: scalePinPositionEnum.optional(),
   displayMode: scaleDisplayModeEnum.optional(),
   displayLabel: z.string().max(200).nullish(),
 });
@@ -169,6 +179,7 @@ export const createSurveySchema = z.object({
   startAt: z.string().datetime().optional().or(z.literal("")),
   endAt: z.string().datetime().optional().or(z.literal("")),
   questionOrderMode: questionOrderModeEnum.default("SCALE_GROUPED"),
+  scaleOrderMode: scaleOrderModeEnum.default("FIXED"),
   scales: z.array(surveyScaleInputSchema).default([]),
 });
 

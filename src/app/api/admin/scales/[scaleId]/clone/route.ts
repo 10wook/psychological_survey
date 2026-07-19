@@ -34,8 +34,10 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
           create: {
             versionNumber: 1,
             status: "DRAFT",
+            scaleType: latest?.scaleType ?? "LIKERT",
             minScore: latest?.minScore ?? 1,
             maxScore: latest?.maxScore ?? 5,
+            likertLabels: latest?.likertLabels ?? undefined,
             requiredByDefault: latest?.requiredByDefault ?? true,
             shuffleQuestions: latest?.shuffleQuestions ?? false,
             estimatedSeconds: latest?.estimatedSeconds ?? null,

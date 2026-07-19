@@ -4,7 +4,8 @@ import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { updateScaleVersionSchema } from "@/lib/validation";
 import { assertScaleVersionEditable, shouldLockScaleVersion } from "@/lib/lock";
-import type { Prisma } from "@prisma/client";
+import { normalizeLikertLabels, usesLikertRange } from "@/lib/likertLabels";
+import { Prisma } from "@prisma/client";
 
 type Params = { params: Promise<{ versionId: string }> };
 
@@ -33,19 +34,41 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
   await assertScaleVersionEditable(versionId);
   const input = updateScaleVersionSchema.parse(await req.json());
 
+  const existing = await prisma.scaleVersion.findUnique({ where: { id: versionId } });
+  if (!existing) throw notFound("척도 버전을 찾을 수 없습니다.");
+
+  const scaleType = input.scaleType ?? existing.scaleType;
+  const minScore = input.minScore ?? existing.minScore;
+  const maxScore = input.maxScore ?? existing.maxScore;
+
+  const data: Prisma.ScaleVersionUpdateInput = {
+    scaleType: input.scaleType,
+    minScore: input.minScore,
+    maxScore: input.maxScore,
+    requiredByDefault: input.requiredByDefault,
+    shuffleQuestions: input.shuffleQuestions,
+    estimatedSeconds: input.estimatedSeconds,
+    interpretationConfig:
+      input.interpretationConfig === undefined
+        ? undefined
+        : (input.interpretationConfig as Prisma.InputJsonValue),
+  };
+
+  if (input.likertLabels !== undefined || input.scaleType !== undefined ||
+      input.minScore !== undefined || input.maxScore !== undefined) {
+    if (!usesLikertRange(scaleType)) {
+      data.likertLabels = Prisma.JsonNull;
+    } else if (input.likertLabels !== undefined) {
+      const normalized = normalizeLikertLabels(scaleType, minScore, maxScore, input.likertLabels);
+      data.likertLabels = normalized === null
+        ? Prisma.JsonNull
+        : (normalized as Prisma.InputJsonValue);
+    }
+  }
+
   const version = await prisma.scaleVersion.update({
     where: { id: versionId },
-    data: {
-      minScore: input.minScore,
-      maxScore: input.maxScore,
-      requiredByDefault: input.requiredByDefault,
-      shuffleQuestions: input.shuffleQuestions,
-      estimatedSeconds: input.estimatedSeconds,
-      interpretationConfig:
-        input.interpretationConfig === undefined
-          ? undefined
-          : (input.interpretationConfig as Prisma.InputJsonValue),
-    },
+    data,
   });
   return ok({ version });
 });

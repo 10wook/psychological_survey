@@ -12,6 +12,32 @@ import { buildQuestionOrder, shuffle, type OrderableQuestion } from "@/lib/shuff
 // ===========================================================================
 
 export type QuestionOrderMode = "SCALE_GROUPED" | "SHUFFLE_ALL";
+export type ScaleOrderMode = "FIXED" | "SHUFFLE";
+export type ScalePinPosition = "NONE" | "FIRST" | "LAST";
+
+export interface OrderableSurveyScale {
+  displayOrder: number;
+  pinPosition: ScalePinPosition;
+}
+
+/**
+ * 척도(섹션) 제시 순서 결정.
+ * - FIRST 고정 → 중간(NONE) → LAST 고정 순으로 결합
+ * - FIRST/LAST 그룹 내부는 displayOrder 유지
+ * - 중간 그룹은 scaleOrderMode=FIXED 이면 displayOrder, SHUFFLE 이면 seed 기반 셔플
+ */
+export function orderSurveyScales<T extends OrderableSurveyScale>(
+  scales: T[],
+  mode: ScaleOrderMode,
+  seed: string,
+): T[] {
+  const byOrder = (a: T, b: T) => a.displayOrder - b.displayOrder;
+  const first = scales.filter((s) => s.pinPosition === "FIRST").sort(byOrder);
+  const last = scales.filter((s) => s.pinPosition === "LAST").sort(byOrder);
+  const mid = scales.filter((s) => s.pinPosition !== "FIRST" && s.pinPosition !== "LAST").sort(byOrder);
+  const orderedMid = mode === "SHUFFLE" ? shuffle(mid, `${seed}:__scales__`) : mid;
+  return [...first, ...orderedMid, ...last];
+}
 
 export interface OrderSection {
   /** 병합(전체 셔플) 섹션이면 null */

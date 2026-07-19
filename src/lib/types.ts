@@ -33,13 +33,16 @@ export interface SubfactorDTO {
 }
 
 export type ScaleVersionStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED" | "LOCKED";
+export type ScaleType = "LIKERT" | "SINGLE" | "MULTIPLE" | "TEXT" | "MIXED";
 
 export interface ScaleVersionDTO {
   id: string;
   versionNumber: number;
   status: ScaleVersionStatus;
+  scaleType: ScaleType;
   minScore: number;
   maxScore: number;
+  likertLabels: string[] | null;
   requiredByDefault: boolean;
   shuffleQuestions: boolean;
   estimatedSeconds: number | null;

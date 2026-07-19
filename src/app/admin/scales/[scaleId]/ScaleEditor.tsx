@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import type { ScaleDTO, ScaleVersionDTO, QuestionType } from "@/lib/types";
+import type { ScaleDTO, ScaleVersionDTO, QuestionType, ScaleType } from "@/lib/types";
 import {
   Alert,
   Badge,
@@ -14,6 +14,28 @@ import {
   Input,
   Select,
 } from "@/components/ui";
+
+const SCALE_TYPE_LABEL: Record<ScaleType, string> = {
+  LIKERT: "리커트",
+  SINGLE: "객관식 (단일 선택)",
+  MULTIPLE: "다중선택",
+  TEXT: "주관식 (줄글)",
+  MIXED: "혼합",
+};
+
+function usesLikertRange(t: ScaleType) {
+  return t === "LIKERT" || t === "MIXED";
+}
+
+function asLabelArray(raw: unknown, count: number): string[] {
+  const src = Array.isArray(raw) ? raw.map((v) => (typeof v === "string" ? v : "")) : [];
+  return Array.from({ length: count }, (_, i) => src[i] ?? "");
+}
+
+function defaultQuestionType(scaleType: ScaleType): QuestionType {
+  if (scaleType === "MIXED" || scaleType === "LIKERT") return "LIKERT";
+  return scaleType;
+}
 
 export function ScaleEditor({ scaleId }: { scaleId: string }) {
   const router = useRouter();
@@ -207,25 +229,53 @@ function VersionSettings({
   onSaved: () => Promise<void>;
   setError: (m: string | null) => void;
 }) {
+  const [scaleType, setScaleType] = useState<ScaleType>(version.scaleType ?? "LIKERT");
   const [minScore, setMin] = useState(String(version.minScore));
   const [maxScore, setMax] = useState(String(version.maxScore));
+  const [labels, setLabels] = useState<string[]>(() =>
+    asLabelArray(version.likertLabels, version.maxScore - version.minScore + 1),
+  );
   const [requiredByDefault, setRequired] = useState(version.requiredByDefault);
   const [shuffleQuestions, setShuffle] = useState(version.shuffleQuestions);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setScaleType(version.scaleType ?? "LIKERT");
     setMin(String(version.minScore));
     setMax(String(version.maxScore));
+    setLabels(asLabelArray(version.likertLabels, version.maxScore - version.minScore + 1));
     setRequired(version.requiredByDefault);
     setShuffle(version.shuffleQuestions);
   }, [version]);
 
+  const min = Number(minScore) || 1;
+  const max = Number(maxScore) || 5;
+  const pointCount = Math.max(0, max - min + 1);
+  const showLikert = usesLikertRange(scaleType);
+
+  function resizeLabels(nextMin: number, nextMax: number) {
+    const count = Math.max(0, nextMax - nextMin + 1);
+    setLabels((prev) => {
+      const arr = [...prev];
+      while (arr.length < count) arr.push("");
+      return arr.slice(0, count);
+    });
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
+    if (showLikert && min >= max) {
+      setError("리커트 최댓값은 최솟값보다 커야 합니다.");
+      setSaving(false);
+      return;
+    }
+    const hasAnyLabel = labels.some((l) => l.trim());
     const res = await api.patch(`/api/admin/scale-versions/${version.id}`, {
-      minScore: Number(minScore),
-      maxScore: Number(maxScore),
+      scaleType,
+      minScore: showLikert ? min : version.minScore,
+      maxScore: showLikert ? max : version.maxScore,
+      likertLabels: showLikert ? (hasAnyLabel ? labels.slice(0, pointCount) : null) : null,
       requiredByDefault,
       shuffleQuestions,
     });
@@ -237,16 +287,67 @@ function VersionSettings({
   return (
     <Card className="space-y-4 p-4">
       <h2 className="text-sm font-semibold text-slate-900">버전 설정</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="응답 최솟값" htmlFor="min">
-          <Input id="min" type="number" value={minScore} disabled={!editable}
-            onChange={(e) => setMin(e.target.value)} />
-        </Field>
-        <Field label="응답 최댓값" htmlFor="max">
-          <Input id="max" type="number" value={maxScore} disabled={!editable}
-            onChange={(e) => setMax(e.target.value)} />
-        </Field>
-      </div>
+      <Field label="척도 유형" htmlFor="scaleType"
+        hint="문항 추가 시 기본 유형입니다. 문항별로 변경할 수 있습니다.">
+        <Select
+          id="scaleType"
+          value={scaleType}
+          disabled={!editable}
+          onChange={(e) => setScaleType(e.target.value as ScaleType)}
+        >
+          {(Object.keys(SCALE_TYPE_LABEL) as ScaleType[]).map((k) => (
+            <option key={k} value={k}>{SCALE_TYPE_LABEL[k]}</option>
+          ))}
+        </Select>
+      </Field>
+
+      {showLikert && (
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">
+            리커트 최솟값/최댓값은 참여자에게 몇 점 척도로 보일지 정합니다.
+            점수별 라벨을 입력하면 새로 추가하는 리커트 문항부터 적용됩니다.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="리커트 최솟값" htmlFor="min">
+              <Input id="min" type="number" value={minScore} disabled={!editable}
+                onChange={(e) => {
+                  setMin(e.target.value);
+                  resizeLabels(Number(e.target.value) || 1, max);
+                }} />
+            </Field>
+            <Field label="리커트 최댓값" htmlFor="max">
+              <Input id="max" type="number" value={maxScore} disabled={!editable}
+                onChange={(e) => {
+                  setMax(e.target.value);
+                  resizeLabels(min, Number(e.target.value) || 5);
+                }} />
+            </Field>
+          </div>
+          {pointCount > 0 && pointCount <= 20 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-600">점수별 라벨</p>
+              {Array.from({ length: pointCount }, (_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-10 shrink-0 text-center text-xs font-mono text-slate-400">
+                    {min + i}
+                  </span>
+                  <Input
+                    placeholder={`점수 ${min + i} 라벨`}
+                    value={labels[i] ?? ""}
+                    disabled={!editable}
+                    onChange={(e) => {
+                      const next = [...labels];
+                      next[i] = e.target.value;
+                      setLabels(next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-4">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={requiredByDefault} disabled={!editable}
@@ -366,7 +467,7 @@ function QuestionManager({
   } = {
     code: "",
     content: "",
-    type: "LIKERT",
+    type: defaultQuestionType(version.scaleType ?? "LIKERT"),
     subfactorId: "",
     isReverse: false,
     isRequired: true,
@@ -375,6 +476,13 @@ function QuestionManager({
     options: [{ value: 1, label: "옵션 1" }, { value: 2, label: "옵션 2" }],
   };
   const [draft, setDraft] = useState(empty);
+
+  useEffect(() => {
+    setDraft((d) => ({
+      ...d,
+      type: defaultQuestionType(version.scaleType ?? "LIKERT"),
+    }));
+  }, [version.id, version.scaleType]);
 
   async function add() {
     if (!draft.code.trim() || !draft.content.trim()) {

@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth";
 import { badRequest, conflict, handler, notFound, ok } from "@/lib/http";
 import { createQuestionSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
+import { labelForLikertValue, parseLikertLabels } from "@/lib/likertLabels";
 
 type Params = { params: Promise<{ versionId: string }> };
 
@@ -12,14 +13,18 @@ function defaultOptionsForType(
   min: number,
   max: number,
   provided?: Array<{ value: number; label: string; displayOrder?: number }>,
+  likertLabels?: string[] | null,
 ) {
   if (provided && provided.length > 0) return provided;
   if (type === "LIKERT") {
-    return Array.from({ length: max - min + 1 }, (_, i) => ({
-      value: min + i,
-      label: String(min + i),
-      displayOrder: i + 1,
-    }));
+    return Array.from({ length: max - min + 1 }, (_, i) => {
+      const value = min + i;
+      return {
+        value,
+        label: labelForLikertValue(value, min, likertLabels),
+        displayOrder: i + 1,
+      };
+    });
   }
   if (type === "SINGLE" || type === "MULTIPLE") {
     return [
@@ -56,7 +61,8 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const count = await prisma.question.count({ where: { scaleVersionId: versionId } });
   const min = input.minScore ?? version.minScore;
   const max = input.maxScore ?? version.maxScore;
-  const opts = defaultOptionsForType(input.type, min, max, input.options);
+  const likertLabels = parseLikertLabels(version.likertLabels);
+  const opts = defaultOptionsForType(input.type, min, max, input.options, likertLabels);
 
   const question = await prisma.question.create({
     data: {

@@ -1,9 +1,11 @@
 import type { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
 import { handler, ok } from "@/lib/http";
 import { createScaleSchema } from "@/lib/validation";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { normalizeLikertLabels, usesLikertRange } from "@/lib/likertLabels";
 
 // GET: 척도 목록 (최신 버전 요약 포함)
 export const GET = handler(async () => {
@@ -17,6 +19,7 @@ export const GET = handler(async () => {
           id: true,
           versionNumber: true,
           status: true,
+          scaleType: true,
           _count: { select: { questions: true } },
         },
       },
@@ -29,6 +32,16 @@ export const GET = handler(async () => {
 export const POST = handler(async (req: NextRequest) => {
   const user = await requireStaff();
   const input = createScaleSchema.parse(await req.json());
+
+  const likert = usesLikertRange(input.scaleType);
+  const minScore = likert ? input.minScore : 1;
+  const maxScore = likert ? input.maxScore : 5;
+  const likertLabels = normalizeLikertLabels(
+    input.scaleType,
+    minScore,
+    maxScore,
+    input.likertLabels,
+  );
 
   const scale = await prisma.scale.create({
     data: {
@@ -44,8 +57,10 @@ export const POST = handler(async (req: NextRequest) => {
         create: {
           versionNumber: 1,
           status: "DRAFT",
-          minScore: input.minScore,
-          maxScore: input.maxScore,
+          scaleType: input.scaleType,
+          minScore,
+          maxScore,
+          likertLabels: (likertLabels ?? undefined) as Prisma.InputJsonValue | undefined,
         },
       },
     },
@@ -57,7 +72,7 @@ export const POST = handler(async (req: NextRequest) => {
     entityType: "Scale",
     entityId: scale.id,
     action: "SCALE_CREATED",
-    after: { name: scale.name },
+    after: { name: scale.name, scaleType: input.scaleType },
     ipAddress: getClientIp(req),
   });
 

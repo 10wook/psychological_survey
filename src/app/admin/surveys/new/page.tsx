@@ -7,12 +7,15 @@ import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/component
 
 type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM";
 type QuestionOrderMode = "SCALE_GROUPED" | "SHUFFLE_ALL";
+type ScaleOrderMode = "FIXED" | "SHUFFLE";
+type ScalePinPosition = "NONE" | "FIRST" | "LAST";
 
 interface ScaleConfig {
   displayMode: ScaleDisplayMode;
   displayLabel: string;
   shuffleQuestions: boolean;
   includeInGlobalShuffle: boolean;
+  pinPosition: ScalePinPosition;
 }
 
 interface AvailableVersion {
@@ -35,6 +38,7 @@ export default function NewSurveyPage() {
     showResult: true,
     targetResponseCount: "",
     questionOrderMode: "SCALE_GROUPED" as QuestionOrderMode,
+    scaleOrderMode: "FIXED" as ScaleOrderMode,
   });
   const [selected, setSelected] = useState<string[]>([]);
   const [scaleConfig, setScaleConfig] = useState<Record<string, ScaleConfig>>({});
@@ -48,6 +52,7 @@ export default function NewSurveyPage() {
         displayLabel: "",
         shuffleQuestions: false,
         includeInGlobalShuffle: true,
+        pinPosition: "NONE",
       }
     );
   }
@@ -66,6 +71,18 @@ export default function NewSurveyPage() {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
+  function moveSelected(id: string, dir: -1 | 1) {
+    setSelected((s) => {
+      const idx = s.indexOf(id);
+      if (idx < 0) return s;
+      const target = idx + dir;
+      if (target < 0 || target >= s.length) return s;
+      const next = [...s];
+      [next[idx], next[target]] = [next[target]!, next[idx]!];
+      return next;
+    });
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -82,6 +99,7 @@ export default function NewSurveyPage() {
       allowDuplicate: form.allowDuplicate,
       showResult: form.showResult,
       questionOrderMode: form.questionOrderMode,
+      scaleOrderMode: form.scaleOrderMode,
       targetResponseCount: form.targetResponseCount ? Number(form.targetResponseCount) : undefined,
       scales: selected.map((id, idx) => {
         const cfg = configOf(id);
@@ -91,6 +109,7 @@ export default function NewSurveyPage() {
           isRequired: true,
           shuffleQuestions: cfg.shuffleQuestions,
           includeInGlobalShuffle: cfg.includeInGlobalShuffle,
+          pinPosition: cfg.pinPosition,
           displayMode: cfg.displayMode,
           displayLabel:
             cfg.displayMode === "CUSTOM" ? cfg.displayLabel || undefined : undefined,
@@ -104,6 +123,8 @@ export default function NewSurveyPage() {
     }
     router.push(`/admin/surveys/${res.data.survey.id}`);
   }
+
+  const versionById = new Map(versions.map((v) => [v.id, v]));
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -131,46 +152,143 @@ export default function NewSurveyPage() {
               <ul className="space-y-2">
                 {versions.map((v) => {
                   const order = selected.indexOf(v.id);
-                  const cfg = configOf(v.id);
                   return (
-                    <li key={v.id} className="rounded-lg border border-slate-200 p-3">
-                      <label className="flex items-center gap-2 text-sm">
+                    <li key={v.id}>
+                      <label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm">
                         <input type="checkbox" checked={order >= 0} onChange={() => toggle(v.id)} />
                         <span className="flex-1">
-                          {v.scale.name} <span className="text-slate-400">v{v.versionNumber} · 문항 {v._count.questions}개</span>
+                          {v.scale.name}{" "}
+                          <span className="text-slate-400">
+                            v{v.versionNumber} · 문항 {v._count.questions}개
+                          </span>
                         </span>
                         {order >= 0 && (
-                          <span className="rounded bg-brand-50 px-2 py-0.5 text-xs text-brand-700">순서 {order + 1}</span>
+                          <span className="rounded bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+                            선택됨
+                          </span>
                         )}
                       </label>
-                      {order >= 0 && (
-                        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-slate-500">응답자에게 표시할 이름</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {selected.length > 0 && (
+            <fieldset className="space-y-3 rounded-lg border border-slate-200 p-3">
+              <legend className="px-1 text-xs font-medium text-slate-500">척도 제시 방식</legend>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">척도 순서</p>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    name="scaleOrderMode"
+                    checked={form.scaleOrderMode === "FIXED"}
+                    onChange={() => setForm((f) => ({ ...f, scaleOrderMode: "FIXED" }))}
+                  />
+                  <span>
+                    순서 고정 (내가 정한 순서)
+                    <span className="block text-xs text-slate-400">
+                      아래 목록의 위→아래 순서대로 척도가 제시됩니다.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    name="scaleOrderMode"
+                    checked={form.scaleOrderMode === "SHUFFLE"}
+                    onChange={() => setForm((f) => ({ ...f, scaleOrderMode: "SHUFFLE" }))}
+                  />
+                  <span>
+                    척도 순서 무작위 셔플
+                    <span className="block text-xs text-slate-400">
+                      &quot;고정 없음&quot; 척도만 응답마다 순서가 바뀝니다. 처음/마지막 고정은 유지됩니다.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-slate-500">선택된 척도 순서 · 위치 고정</p>
+                <ul className="space-y-2">
+                  {selected.map((id, idx) => {
+                    const v = versionById.get(id);
+                    if (!v) return null;
+                    const cfg = configOf(id);
+                    return (
+                      <li key={id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="rounded bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+                            {idx + 1}
+                          </span>
+                          <span className="flex-1 font-medium text-slate-800">{v.scale.name}</span>
+                          <button
+                            type="button"
+                            className="px-1 text-slate-400 hover:text-slate-700"
+                            aria-label="위로"
+                            onClick={() => moveSelected(id, -1)}
+                            disabled={idx === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="px-1 text-slate-400 hover:text-slate-700"
+                            aria-label="아래로"
+                            onClick={() => moveSelected(id, 1)}
+                            disabled={idx === selected.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <Field label="위치 고정">
+                            <Select
+                              value={cfg.pinPosition}
+                              onChange={(e) =>
+                                updateConfig(id, { pinPosition: e.target.value as ScalePinPosition })
+                              }
+                            >
+                              <option value="NONE">고정 없음</option>
+                              <option value="FIRST">처음 고정</option>
+                              <option value="LAST">마지막 고정</option>
+                            </Select>
+                          </Field>
+                          <Field label="표시 이름">
                             <Select
                               value={cfg.displayMode}
                               onChange={(e) =>
-                                updateConfig(v.id, { displayMode: e.target.value as ScaleDisplayMode })
+                                updateConfig(id, { displayMode: e.target.value as ScaleDisplayMode })
                               }
                             >
                               <option value="NAME">척도 제목 그대로</option>
                               <option value="DESCRIPTION">척도 설명으로 표시</option>
                               <option value="CUSTOM">직접 입력 (블라인드)</option>
                             </Select>
-                            {cfg.displayMode === "CUSTOM" && (
-                              <Input
-                                placeholder="응답자에게 보일 이름 (예: 파트 A)"
-                                value={cfg.displayLabel}
-                                onChange={(e) => updateConfig(v.id, { displayLabel: e.target.value })}
-                              />
-                            )}
-                          </div>
+                          </Field>
+                        </div>
+                        {cfg.displayMode === "CUSTOM" && (
+                          <Input
+                            className="mt-2"
+                            placeholder="응답자에게 보일 이름 (예: 파트 A)"
+                            value={cfg.displayLabel}
+                            onChange={(e) => updateConfig(id, { displayLabel: e.target.value })}
+                          />
+                        )}
+                        <div className="mt-2">
                           {form.questionOrderMode === "SCALE_GROUPED" ? (
                             <label className="flex items-center gap-2 text-xs text-slate-600">
                               <input
                                 type="checkbox"
                                 checked={cfg.shuffleQuestions}
-                                onChange={(e) => updateConfig(v.id, { shuffleQuestions: e.target.checked })}
+                                onChange={(e) =>
+                                  updateConfig(id, { shuffleQuestions: e.target.checked })
+                                }
                               />
                               이 척도 안에서 문항 순서 무작위
                             </label>
@@ -180,54 +298,60 @@ export default function NewSurveyPage() {
                                 type="checkbox"
                                 checked={cfg.includeInGlobalShuffle}
                                 onChange={(e) =>
-                                  updateConfig(v.id, { includeInGlobalShuffle: e.target.checked })
+                                  updateConfig(id, { includeInGlobalShuffle: e.target.checked })
                                 }
                               />
                               전체 섞기에 이 척도 포함
                             </label>
                           )}
                         </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
 
-          <fieldset className="space-y-2 rounded-lg border border-slate-200 p-3">
-            <legend className="px-1 text-xs font-medium text-slate-500">문항 제시 방식</legend>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
-                className="mt-0.5"
-                name="questionOrderMode"
-                checked={form.questionOrderMode === "SCALE_GROUPED"}
-                onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SCALE_GROUPED" }))}
-              />
-              <span>
-                척도별로 묶어서 제시
-                <span className="block text-xs text-slate-400">
-                  같은 척도 문항끼리 모아서 순서대로. 척도별로 &quot;척도 내 무작위&quot;를 켤 수 있습니다.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
-                className="mt-0.5"
-                name="questionOrderMode"
-                checked={form.questionOrderMode === "SHUFFLE_ALL"}
-                onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SHUFFLE_ALL" }))}
-              />
-              <span>
-                전체 문항 섞기
-                <span className="block text-xs text-slate-400">
-                  &quot;전체 섞기에 포함&quot;된 척도들의 문항을 하나로 합쳐 무작위 제시. 포함하지 않은 척도는 따로 묶여서 나옵니다.
-                </span>
-              </span>
-            </label>
-          </fieldset>
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <p className="text-sm font-medium text-slate-700">문항 섞기 (하위 옵션)</p>
+                {form.scaleOrderMode === "SHUFFLE" && form.questionOrderMode === "SHUFFLE_ALL" && (
+                  <Alert variant="warning">
+                    전체 문항 섞기를 쓰면 &quot;전체 섞기 포함&quot;된 척도는 하나의 묶음으로 합쳐져
+                    척도 순서 셔플 효과가 제한됩니다.
+                  </Alert>
+                )}
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    name="questionOrderMode"
+                    checked={form.questionOrderMode === "SCALE_GROUPED"}
+                    onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SCALE_GROUPED" }))}
+                  />
+                  <span>
+                    척도별로 묶어서 제시
+                    <span className="block text-xs text-slate-400">
+                      같은 척도 문항끼리 모아서. 척도별 &quot;척도 내 무작위&quot;를 켤 수 있습니다.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    name="questionOrderMode"
+                    checked={form.questionOrderMode === "SHUFFLE_ALL"}
+                    onChange={() => setForm((f) => ({ ...f, questionOrderMode: "SHUFFLE_ALL" }))}
+                  />
+                  <span>
+                    전체 문항 섞기
+                    <span className="block text-xs text-slate-400">
+                      &quot;전체 섞기에 포함&quot;된 척도 문항을 하나로 합쳐 무작위 제시합니다.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="목표 응답 수" htmlFor="target">

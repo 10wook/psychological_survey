@@ -49,6 +49,7 @@ export const POST = handler(async (req: NextRequest) => {
       startAt: input.startAt ? new Date(input.startAt) : null,
       endAt: input.endAt ? new Date(input.endAt) : null,
       questionOrderMode: input.questionOrderMode,
+      scaleOrderMode: input.scaleOrderMode,
       createdById: user.id,
       surveyScales: {
         create: input.scales.map((s, idx) => ({
@@ -57,6 +58,7 @@ export const POST = handler(async (req: NextRequest) => {
           isRequired: s.isRequired ?? true,
           shuffleQuestions: s.shuffleQuestions ?? false,
           includeInGlobalShuffle: s.includeInGlobalShuffle ?? true,
+          pinPosition: s.pinPosition ?? "NONE",
           displayMode: s.displayMode ?? "NAME",
           displayLabel: s.displayMode === "CUSTOM" ? (s.displayLabel ?? null) : null,
         })),

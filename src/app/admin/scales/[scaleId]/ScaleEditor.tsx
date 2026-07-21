@@ -91,6 +91,7 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
       return null;
     }
     await load();
+    await refreshLock();
     return res.data;
   }
 
@@ -104,6 +105,12 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     if (!versionId) return;
     const data = await handle(api.post(`/api/admin/scale-versions/${versionId}/lock`));
     if (data) flash("척도 버전을 잠갔습니다.");
+  }
+
+  async function unlockVersion() {
+    if (!versionId) return;
+    const data = await handle(api.post(`/api/admin/scale-versions/${versionId}/unlock`));
+    if (data) flash("척도 버전 잠금을 해제했습니다.");
   }
 
   async function createVersion() {
@@ -172,8 +179,19 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
           {locked && version.status !== "DRAFT" && (
             <Alert variant="warning">
               이 버전은 응답이 시작되었거나 게시된 설문에 사용 중이라 수정할 수 없습니다.
-              수정하려면 “새 버전”을 생성하세요.
+              수정하려면 “새 버전”을 생성하세요. 응답이 있거나 설문에 쓰인 버전은 잠금 해제할 수 없습니다.
             </Alert>
+          )}
+          {!locked && version.status === "LOCKED" && (
+            <Alert variant="info">
+              이 버전은 잠겨 있지만 아직 설문/응답에 쓰이지 않아 잠금 해제할 수 있습니다.
+              설문은 특정 척도 버전을 고정하므로, 개시된 설문에는 이후 DRAFT 수정이 반영되지 않습니다.
+            </Alert>
+          )}
+          {version.status === "DRAFT" && (
+            <p className="text-xs text-slate-500">
+              설문은 특정 척도 버전을 고정합니다. 잠긴 버전을 고치려면 새 버전을 만든 뒤 새 설문에 연결하세요.
+            </p>
           )}
 
           <VersionSettings version={version} editable={!!editable} onSaved={load} setError={setError} />
@@ -207,6 +225,11 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
               {version.status === "PUBLISHED" && (
                 <Button size="sm" variant="secondary" onClick={lockVersion}>
                   버전 잠금
+                </Button>
+              )}
+              {version.status === "LOCKED" && !locked && (
+                <Button size="sm" variant="secondary" onClick={unlockVersion}>
+                  잠금 해제
                 </Button>
               )}
             </div>
@@ -443,6 +466,18 @@ const QUESTION_TYPE_LABEL: Record<string, string> = {
   TEXT: "줄글",
 };
 
+type QuestionDraft = {
+  code: string;
+  content: string;
+  type: QuestionType;
+  subfactorId: string;
+  isReverse: boolean;
+  isRequired: boolean;
+  minSelect: string;
+  maxSelect: string;
+  options: Array<{ value: number; label: string }>;
+};
+
 function QuestionManager({
   version,
   editable,
@@ -454,43 +489,58 @@ function QuestionManager({
   onChanged: () => Promise<void>;
   setError: (m: string | null) => void;
 }) {
-  const empty: {
-    code: string;
-    content: string;
-    type: QuestionType;
-    subfactorId: string;
-    isReverse: boolean;
-    isRequired: boolean;
-    minSelect: string;
-    maxSelect: string;
-    options: Array<{ value: number; label: string }>;
-  } = {
-    code: "",
-    content: "",
-    type: defaultQuestionType(version.scaleType ?? "LIKERT"),
-    subfactorId: "",
-    isReverse: false,
-    isRequired: true,
-    minSelect: "",
-    maxSelect: "",
-    options: [{ value: 1, label: "옵션 1" }, { value: 2, label: "옵션 2" }],
-  };
-  const [draft, setDraft] = useState(empty);
+  function emptyDraft(): QuestionDraft {
+    return {
+      code: "",
+      content: "",
+      type: defaultQuestionType(version.scaleType ?? "LIKERT"),
+      subfactorId: "",
+      isReverse: false,
+      isRequired: true,
+      minSelect: "",
+      maxSelect: "",
+      options: [{ value: 1, label: "옵션 1" }, { value: 2, label: "옵션 2" }],
+    };
+  }
+
+  const [draft, setDraft] = useState<QuestionDraft>(emptyDraft);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setDraft((d) => ({
-      ...d,
-      type: defaultQuestionType(version.scaleType ?? "LIKERT"),
-    }));
+    setEditingId(null);
+    setDraft(emptyDraft());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when version changes
   }, [version.id, version.scaleType]);
 
-  async function add() {
-    if (!draft.code.trim() || !draft.content.trim()) {
-      setError("문항 코드와 내용을 입력하세요.");
-      return;
-    }
+  function startEdit(q: (typeof version.questions)[number]) {
+    if (!editable) return;
+    setEditingId(q.id);
+    setDraft({
+      code: q.code,
+      content: q.content,
+      type: q.type,
+      subfactorId: q.subfactorId ?? "",
+      isReverse: q.isReverse,
+      isRequired: q.isRequired,
+      minSelect: q.minSelect != null ? String(q.minSelect) : "",
+      maxSelect: q.maxSelect != null ? String(q.maxSelect) : "",
+      options:
+        q.options.length > 0
+          ? q.options.map((o) => ({ value: o.value, label: o.label }))
+          : [{ value: 1, label: "옵션 1" }, { value: 2, label: "옵션 2" }],
+    });
     setError(null);
-    const res = await api.post(`/api/admin/scale-versions/${version.id}/questions`, {
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setDraft(emptyDraft());
+    setError(null);
+  }
+
+  function payload() {
+    return {
       code: draft.code.trim(),
       content: draft.content.trim(),
       type: draft.type,
@@ -499,16 +549,43 @@ function QuestionManager({
       isRequired: draft.isRequired,
       minSelect: draft.type === "MULTIPLE" && draft.minSelect ? Number(draft.minSelect) : null,
       maxSelect: draft.type === "MULTIPLE" && draft.maxSelect ? Number(draft.maxSelect) : null,
-      // 보기(옵션)는 단일/다중 선택 문항에서만 직접 입력한다.
-      // 리커트는 서버가 min~max 점수 라벨을 자동 생성하므로 옵션을 보내지 않는다.
+      // 보기(옵션)는 단일/다중 선택 문항에서만 직접 입력. 리커트는 서버/기존 옵션 유지.
       options:
         draft.type === "SINGLE" || draft.type === "MULTIPLE"
           ? draft.options
           : undefined,
-    });
+    };
+  }
+
+  async function add() {
+    if (!draft.code.trim() || !draft.content.trim()) {
+      setError("문항 코드와 내용을 입력하세요.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    const res = await api.post(`/api/admin/scale-versions/${version.id}/questions`, payload());
+    setSaving(false);
     if (!res.ok) setError(res.error.message);
     else {
-      setDraft(empty);
+      cancelEdit();
+      await onChanged();
+    }
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    if (!draft.code.trim() || !draft.content.trim()) {
+      setError("문항 코드와 내용을 입력하세요.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    const res = await api.patch(`/api/admin/questions/${editingId}`, payload());
+    setSaving(false);
+    if (!res.ok) setError(res.error.message);
+    else {
+      cancelEdit();
       await onChanged();
     }
   }
@@ -520,6 +597,7 @@ function QuestionManager({
   }
 
   async function remove(id: string) {
+    if (editingId === id) cancelEdit();
     const res = await api.del(`/api/admin/questions/${id}`);
     if (!res.ok) setError(res.error.message);
     else await onChanged();
@@ -539,19 +617,31 @@ function QuestionManager({
   }
 
   const subMap = new Map(version.subfactors.map((s) => [s.id, s.name]));
+  const isEditing = Boolean(editingId);
 
   return (
     <Card className="space-y-4 p-4">
       <h2 className="text-sm font-semibold text-slate-900">
         문항 ({version.questions.length})
       </h2>
+      {editable && (
+        <p className="text-xs text-slate-500">문항을 클릭하거나 「수정」을 누르면 아래에서 편집할 수 있습니다.</p>
+      )}
 
       {version.questions.length === 0 ? (
         <EmptyState title="문항이 없습니다." description="아래에서 문항을 추가하세요." />
       ) : (
         <ul className="divide-y divide-slate-100">
           {version.questions.map((q, i) => (
-            <li key={q.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+            <li
+              key={q.id}
+              className={`flex flex-wrap items-center gap-2 py-2 text-sm ${
+                editingId === q.id ? "bg-brand-50/60" : ""
+              } ${editable ? "cursor-pointer hover:bg-slate-50" : ""}`}
+              onClick={() => {
+                if (editable) startEdit(q);
+              }}
+            >
               <span className="w-12 shrink-0 font-mono text-xs text-slate-400">{q.code}</span>
               <span className={`flex-1 ${q.isActive ? "text-slate-800" : "text-slate-400 line-through"}`}>
                 {q.content}
@@ -571,16 +661,18 @@ function QuestionManager({
                 <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">선택</span>
               )}
               {editable && (
-                <span className="flex items-center gap-1">
-                  <button onClick={() => move(i, -1)} className="px-1 text-slate-400 hover:text-slate-700" aria-label="위로">↑</button>
-                  <button onClick={() => move(i, 1)} className="px-1 text-slate-400 hover:text-slate-700" aria-label="아래로">↓</button>
-                  <button onClick={() => toggle(q.id, { isReverse: !q.isReverse })}
+                <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button type="button" onClick={() => startEdit(q)}
+                    className="px-1 text-xs text-brand-600 hover:text-brand-700">수정</button>
+                  <button type="button" onClick={() => move(i, -1)} className="px-1 text-slate-400 hover:text-slate-700" aria-label="위로">↑</button>
+                  <button type="button" onClick={() => move(i, 1)} className="px-1 text-slate-400 hover:text-slate-700" aria-label="아래로">↓</button>
+                  <button type="button" onClick={() => toggle(q.id, { isReverse: !q.isReverse })}
                     className="px-1 text-xs text-slate-500 hover:text-amber-600">역문항</button>
-                  <button onClick={() => toggle(q.id, { isActive: !q.isActive })}
+                  <button type="button" onClick={() => toggle(q.id, { isActive: !q.isActive })}
                     className="px-1 text-xs text-slate-500 hover:text-slate-800">
                     {q.isActive ? "비활성" : "활성"}
                   </button>
-                  <button onClick={() => remove(q.id)} className="px-1 text-xs text-red-500 hover:text-red-700">삭제</button>
+                  <button type="button" onClick={() => remove(q.id)} className="px-1 text-xs text-red-500 hover:text-red-700">삭제</button>
                 </span>
               )}
             </li>
@@ -590,7 +682,9 @@ function QuestionManager({
 
       {editable && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-medium text-slate-500">새 문항 추가</p>
+          <p className="text-xs font-medium text-slate-500">
+            {isEditing ? "문항 수정" : "새 문항 추가"}
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <Input placeholder="코드 (예: Q1)" value={draft.code}
               onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
@@ -660,7 +754,22 @@ function QuestionManager({
               </Button>
             </div>
           )}
-          <Button size="sm" onClick={add}>문항 추가</Button>
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button size="sm" onClick={saveEdit} disabled={saving}>
+                  {saving ? "저장 중..." : "수정 저장"}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={cancelEdit} disabled={saving}>
+                  취소
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" onClick={add} disabled={saving}>
+                {saving ? "추가 중..." : "문항 추가"}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </Card>

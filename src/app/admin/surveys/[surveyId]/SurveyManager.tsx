@@ -102,6 +102,10 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
 
       <Card className="space-y-3 p-4">
         <h2 className="text-sm font-semibold text-slate-900">연결된 척도</h2>
+        <p className="text-xs text-slate-500">
+          설문은 특정 척도 버전을 고정합니다. 잠긴 버전을 고치려면 새 버전을 만든 뒤 새 설문에 연결하세요.
+          게시·잠금된 설문에 쓰인 척도 버전은 수정할 수 없습니다.
+        </p>
         <ul className="space-y-1 text-sm text-slate-700">
           {survey.surveyScales.map((ss) => (
             <li key={ss.id} className="flex items-center gap-2">
@@ -135,6 +139,15 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
           {survey.status !== "DRAFT" && survey.status !== "LOCKED" && (
             <Button size="sm" variant="secondary" onClick={() => act("lock", "설문을 잠갔습니다.")}>
               잠금
+            </Button>
+          )}
+          {survey.status === "LOCKED" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => act("unlock", "설문 잠금을 해제했습니다. (종료 상태로 전환)")}
+            >
+              잠금 해제
             </Button>
           )}
         </div>

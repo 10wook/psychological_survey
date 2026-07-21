@@ -1,0 +1,101 @@
+name: 기능 요청
+description: 신규 기능·화면·정책을 기획하고 개발에 전달합니다.
+title: "[기능] "
+labels:
+  - feature
+  - planning
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 기능 요청
+        기획자가 새 기능이나 정책 변경을 등록할 때 사용합니다.
+        **배경 → 목표 → 상세 → 수용 기준** 순으로 작성하면 개발 검토가 빨라집니다.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      options:
+        - P0 (즉시 / 차단 이슈)
+        - P1 (이번 스프린트)
+        - P2 (다음 스프린트)
+        - P3 (백로그)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 관련 영역
+      multiple: true
+      options:
+        - 응답자 (설문 응답·결과)
+        - 연구자/관리자 (콘솔)
+        - 척도·문항 관리
+        - 설문 생성·배포
+        - 채점·통계·내보내기
+        - 인증·동의·개인정보
+        - 기타
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 배경 / 문제
+      description: 왜 이 기능이 필요한지, 현재 어떤 불편이 있는지
+      placeholder: "예: 응답자가 설문 중단 후 재접속 시 진행 상황을 알기 어렵습니다."
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표 (기대 결과)
+      description: 이 기능이 완료되면 사용자가 무엇을 할 수 있게 되는지
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-story
+    attributes:
+      label: 사용자 시나리오
+      description: "As a … I want … so that … 형식 또는 단계별 흐름"
+      placeholder: |
+        1. 관리자가 설문을 생성한다
+        2. 응답자가 QR로 접속한다
+        3. …
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 수용 기준 (완료 정의)
+      description: 체크리스트 형태로 작성해 주세요
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 범위 외 (이번에 하지 않을 것)
+      placeholder: 이번 이슈에서 제외할 항목을 명시하면 범위 creep을 줄일 수 있습니다.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 참고 자료
+      description: 와이어프레임, Figma, 논문, 유사 서비스 링크 등
+      placeholder: "- Figma: …\n- 참고 논문: …"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 기획자 확인
+      options:
+        - label: 수용 기준을 개발자와 합의할 준비가 되었습니다
+          required: true
+        - label: 개인정보·동의·윤리 관련 검토가 필요하면 별도 이슈로 분리했습니다

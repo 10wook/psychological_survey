@@ -1,0 +1,88 @@
+name: UX·화면 검토
+description: 와이어프레임·화면 흐름·카피에 대한 기획 검토를 요청합니다.
+title: "[UX] "
+labels:
+  - ux
+  - planning
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## UX·화면 검토
+        화면 설계, 문구(카피), 사용자 흐름에 대한 **기획자 검토**를 요청할 때 사용합니다.
+        스크린샷·Figma 링크를 꼭 첨부해 주세요.
+
+  - type: dropdown
+    id: review-type
+    attributes:
+      label: 검토 유형
+      options:
+        - 신규 화면 기획 검토
+        - 구현 결과 검토 (개발 완료 후)
+        - 카피·문구 검토
+        - 접근성·모바일 UX
+        - 오류·빈 상태·로딩 UX
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target-user
+    attributes:
+      label: 대상 사용자
+      multiple: true
+      options:
+        - 응답자
+        - 연구자
+        - 관리자
+        - 공통
+    validations:
+      required: true
+
+  - type: input
+    id: screen-path
+    attributes:
+      label: 화면 / URL 경로
+      placeholder: "예: /respond/[id], 관리자 > 설문 상세"
+
+  - type: textarea
+    id: current-design
+    attributes:
+      label: 현재 설계 또는 구현 설명
+      description: 무엇을 보여주는 화면인지, 주요 컴포넌트·동작
+    validations:
+      required: true
+
+  - type: textarea
+    id: design-links
+    attributes:
+      label: 디자인·스크린샷
+      placeholder: |
+        - Figma: …
+        - 스크린샷: (이미지 드래그 앤 드롭)
+
+  - type: textarea
+    id: review-points
+    attributes:
+      label: 검토 요청 포인트
+      description: 기획자에게 특히 확인받고 싶은 항목
+      placeholder: |
+        - [ ] 정보 우선순위가 맞는지
+        - [ ] 동의 문구가 연구 윤리 기준에 맞는지
+        - [ ] 모바일에서 버튼 터치 영역
+    validations:
+      required: true
+
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: 미결정 사항
+
+  - type: dropdown
+    id: deadline
+    attributes:
+      label: 검토 마감
+      options:
+        - 1–2일
+        - 이번 주
+        - 다음 배포 전
+        - 일정 유연

@@ -1,0 +1,79 @@
+name: 기획 변경
+description: 범위·일정·우선순위 변경 또는 기존 기획 수정을 기록합니다.
+title: "[변경] "
+labels:
+  - change
+  - planning
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 기획 변경
+        이미 합의된 요구사항·일정·범위가 바뀔 때 사용합니다.
+        **변경 전 / 변경 후**를 명확히 적어 히스토리를 남깁니다.
+
+  - type: input
+    id: related-issue
+    attributes:
+      label: 원본 이슈
+      placeholder: "#123"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: change-reason
+    attributes:
+      label: 변경 사유
+      options:
+        - 사용자/연구 피드백
+        - 일정·리소스 조정
+        - 기술적 제약 발견
+        - 정책·윤리 검토 결과
+        - 우선순위 재조정
+        - 기타
+    validations:
+      required: true
+
+  - type: textarea
+    id: before
+    attributes:
+      label: 변경 전 (As-Is)
+    validations:
+      required: true
+
+  - type: textarea
+    id: after
+    attributes:
+      label: 변경 후 (To-Be)
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 영향 범위
+      description: 일정, 다른 기능, 데이터·마이그레이션, QA 범위
+      placeholder: |
+        - 개발 +2일 예상
+        - #456 이슈와 연동 필요
+        - 기존 응답 데이터 영향 없음
+
+  - type: dropdown
+    id: approval
+    attributes:
+      label: 합의 상태
+      options:
+        - 기획자 제안 (검토 필요)
+        - 기획·개발 합의 완료
+        - 보류 / 재논의 필요
+    validations:
+      required: true
+
+  - type: textarea
+    id: action-items
+    attributes:
+      label: 후속 조치
+      placeholder: |
+        - [ ] README/문서 업데이트
+        - [ ] 관련 이슈 라벨 변경
+        - [ ] QA 체크리스트 수정

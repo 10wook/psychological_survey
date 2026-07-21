@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: README
+    url: https://github.com/10wook/psychological_survey/blob/main/README.md
+    about: 프로젝트 개요와 기술 스택을 확인합니다.
+  - name: 기획 논의 (Discussions)
+    url: https://github.com/10wook/psychological_survey/discussions
+    about: 이슈로 올리기 애매한 아이디어·브레인스토밍은 Discussions를 사용해 주세요.

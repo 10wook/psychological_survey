@@ -1,0 +1,76 @@
+name: 요구사항 확인
+description: 개발 중 기획자에게 확인·결정이 필요할 때 사용합니다.
+title: "[확인] "
+labels:
+  - question
+  - planning
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 요구사항 확인
+        개발자가 구현 전·중에 **기획자의 답변 또는 의사결정**이 필요할 때 사용합니다.
+        가능하면 **선택지(A/B/C)** 를 함께 적어 주세요.
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: 답변 필요 시점
+      options:
+        - 오늘 (개발 차단)
+        - 이번 주
+        - 다음 스프린트 전
+        - 참고용 (차단 없음)
+    validations:
+      required: true
+
+  - type: input
+    id: related-issue
+    attributes:
+      label: 관련 이슈 / PR
+      placeholder: "#123 또는 PR 링크"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 맥락
+      description: 어떤 기능·화면을 작업 중인지, 지금까지의 이해
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 확인이 필요한 질문
+      placeholder: |
+        Q1. …
+        Q2. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: 제안 선택지 (있을 경우)
+      description: 기획자가 고르기 쉽도록 A/B/C 형태로 작성
+      placeholder: |
+        A. … (장점 / 단점)
+        B. … (장점 / 단점)
+        C. …
+
+  - type: textarea
+    id: dev-recommendation
+    attributes:
+      label: 개발 측 의견 (선택)
+      description: 기술·일정 관점에서의 추천안
+
+  - type: dropdown
+    id: assignee-role
+    attributes:
+      label: 답변 담당
+      options:
+        - 기획자
+        - 기획자 + 연구 책임자
+        - 팀 논의 필요
+    validations:
+      required: true

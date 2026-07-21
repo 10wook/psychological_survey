@@ -1,0 +1,91 @@
+name: 버그 리포트
+description: 예상과 다른 동작·오류를 보고합니다.
+title: "[버그] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 버그 리포트
+        재현 가능한 버그는 **환경 → 재현 단계 → 기대/실제 결과** 순으로 작성해 주세요.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도
+      options:
+        - Critical (서비스 불가 / 데이터 손실)
+        - Major (핵심 기능 불가)
+        - Minor (우회 가능)
+        - Trivial (UI·문구)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 발생 영역
+      multiple: true
+      options:
+        - 응답자 설문·결과
+        - 관리자 콘솔
+        - 채점·통계
+        - 내보내기
+        - 인증·동의
+        - API / 서버
+        - 기타
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 단계
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 환경
+      placeholder: |
+        - OS / 브라우저:
+        - 배포 환경 (local / staging / prod):
+        - 관련 설문·척도 ID (있을 경우):
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 스크린샷 / 로그
+      description: 콘솔 에러, Network 탭, 서버 로그 등
+
+  - type: dropdown
+    id: reporter
+    attributes:
+      label: 보고자
+      options:
+        - 기획
+        - 개발
+        - QA / 테스트
+        - 사용자 피드백
+    validations:
+      required: true

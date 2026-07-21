@@ -1,0 +1,93 @@
+name: 척도·설문 기획
+description: 심리척도, 문항, 채점·해석 규칙 등 도메인 기획을 등록합니다.
+title: "[척도/설문] "
+labels:
+  - planning
+  - domain
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 척도·설문 기획
+        이 프로젝트 도메인(척도, 역문항, 하위요인, 채점, 결과 해석) 관련 기획을 정리합니다.
+        **채점 규칙과 예외 케이스**까지 적어 주면 구현 오류를 줄일 수 있습니다.
+
+  - type: dropdown
+    id: spec-type
+    attributes:
+      label: 기획 유형
+      options:
+        - 신규 척도 등록
+        - 기존 척도 수정 (버전 업)
+        - 설문 구성 (척도 묶음)
+        - 채점·해석 규칙
+        - 결과 화면 / 리포트
+        - 통계·내보내기 요구사항
+    validations:
+      required: true
+
+  - type: input
+    id: scale-name
+    attributes:
+      label: 척도 / 설문 이름
+      placeholder: "예: CES-D, 연구용 종합 설문 A"
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 사용 목적
+      description: 어떤 연구·대상·상황에서 쓰이는지
+    validations:
+      required: true
+
+  - type: textarea
+    id: items
+    attributes:
+      label: 문항 구성
+      description: 문항 수, 척도(리커트 등), 역문항 번호, 하위요인 매핑
+      placeholder: |
+        - 총 20문항, 4점 리커트
+        - 역문항: 4, 8, 12번
+        - 하위요인: 우울(1–10), 무기력(11–20)
+
+  - type: textarea
+    id: scoring
+    attributes:
+      label: 채점 규칙
+      description: 총점·하위요인 계산, 결측 처리, 역채점 방식
+      placeholder: |
+        - 역문항: (max+1) - raw
+        - 결측 20% 초과 시 채점 불가
+        - 하위요인 = 해당 문항 합
+    validations:
+      required: true
+
+  - type: textarea
+    id: interpretation
+    attributes:
+      label: 결과 해석 / 컷오프
+      description: 점수 구간별 해석, 주의 문구, norm 비교 여부
+      placeholder: |
+        - 16점 이상: 우울 증상 가능성 높음
+        - 결과 화면에 "진단이 아님" 주의 문구 표시
+
+  - type: textarea
+    id: consent-privacy
+    attributes:
+      label: 동의·개인정보
+      description: 수집 항목, 보관 기간, 익명/실명 여부
+
+  - type: textarea
+    id: edge-cases
+    attributes:
+      label: 예외·엣지 케이스
+      placeholder: |
+        - 중간 저장 후 제출 전 이탈
+        - 잠긴 척도 버전과의 호환
+        - 문항 무작위화 시 하위요인 표시
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 출처 / 참고 문헌
+      placeholder: 원 논문, 매뉴얼, 기존 Excel/코드북 링크

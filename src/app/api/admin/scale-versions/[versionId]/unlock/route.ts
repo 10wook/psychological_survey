@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth";
 import { badRequest, forbidden, handler, notFound, ok } from "@/lib/http";
 import { shouldLockScaleVersion } from "@/lib/lock";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
@@ -11,6 +12,7 @@ type Params = { params: Promise<{ versionId: string }> };
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
 
   const version = await prisma.scaleVersion.findUnique({ where: { id: versionId } });
   if (!version) throw notFound("척도 버전을 찾을 수 없습니다.");

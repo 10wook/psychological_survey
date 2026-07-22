@@ -5,6 +5,7 @@ import { badRequest, conflict, handler, notFound, ok } from "@/lib/http";
 import { createQuestionSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
 import { labelForLikertValue, parseLikertLabels } from "@/lib/likertLabels";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
@@ -37,8 +38,9 @@ function defaultOptionsForType(
 
 // 문항 추가. 유형별 기본 선택지 자동 생성.
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
   await assertScaleVersionEditable(versionId);
 
   const version = await prisma.scaleVersion.findUnique({ where: { id: versionId } });

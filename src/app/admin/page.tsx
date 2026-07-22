@@ -1,16 +1,25 @@
 import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { ownedSurveyWhere } from "@/lib/ownership";
 import { Card, LinkButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
+  const surveyWhere = ownedSurveyWhere(user);
+
   const [surveyCount, activeSurveys, completedResponses, recentResponses] =
     await Promise.all([
-      prisma.survey.count(),
-      prisma.survey.count({ where: { status: "PUBLISHED" } }),
-      prisma.surveyResponse.count({ where: { status: "COMPLETED" } }),
+      prisma.survey.count({ where: surveyWhere }),
+      prisma.survey.count({ where: { ...surveyWhere, status: "PUBLISHED" } }),
+      prisma.surveyResponse.count({
+        where: { status: "COMPLETED", survey: surveyWhere },
+      }),
       prisma.surveyResponse.findMany({
-        where: { status: "COMPLETED" },
+        where: { status: "COMPLETED", survey: surveyWhere },
         orderBy: { completedAt: "desc" },
         take: 5,
         include: { survey: true, participant: true },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
 import { badRequest, handler, notFound, ok } from "@/lib/http";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
@@ -10,6 +11,7 @@ type Params = { params: Promise<{ versionId: string }> };
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
 
   const version = await prisma.scaleVersion.findUnique({
     where: { id: versionId },

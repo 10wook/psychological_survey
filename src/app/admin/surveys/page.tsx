@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { ownedSurveyWhere } from "@/lib/ownership";
 import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function SurveysPage() {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
   const surveys = await prisma.survey.findMany({
+    where: ownedSurveyWhere(user),
     orderBy: { updatedAt: "desc" },
     include: { _count: { select: { responses: true, surveyScales: true } } },
   });

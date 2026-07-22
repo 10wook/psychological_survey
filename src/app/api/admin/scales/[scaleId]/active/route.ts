@@ -2,8 +2,9 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
-import { handler, notFound, ok } from "@/lib/http";
+import { handler, ok } from "@/lib/http";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsScale } from "@/lib/ownership";
 
 type Params = { params: Promise<{ scaleId: string }> };
 const schema = z.object({ isActive: z.boolean() });
@@ -12,10 +13,8 @@ const schema = z.object({ isActive: z.boolean() });
 export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { scaleId } = await params;
+  await assertOwnsScale(user, scaleId);
   const { isActive } = schema.parse(await req.json());
-
-  const existing = await prisma.scale.findUnique({ where: { id: scaleId } });
-  if (!existing) throw notFound("척도를 찾을 수 없습니다.");
 
   const scale = await prisma.scale.update({
     where: { id: scaleId },

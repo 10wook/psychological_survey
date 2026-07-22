@@ -4,13 +4,15 @@ import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { createSubfactorSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
 // 하위요인 추가 (문서 6.4).
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
   await assertScaleVersionEditable(versionId);
 
   const version = await prisma.scaleVersion.findUnique({ where: { id: versionId } });

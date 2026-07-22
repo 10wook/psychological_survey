@@ -4,6 +4,7 @@ import { canViewPii, requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { getMonitoringStats } from "@/lib/surveyStats";
 import type { ResponseStatus } from "@prisma/client";
+import { assertOwnsSurvey } from "@/lib/ownership";
 
 type Params = { params: Promise<{ surveyId: string }> };
 
@@ -11,6 +12,7 @@ type Params = { params: Promise<{ surveyId: string }> };
 export const GET = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { surveyId } = await params;
+  await assertOwnsSurvey(user, surveyId);
 
   const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
   if (!survey) throw notFound("설문을 찾을 수 없습니다.");

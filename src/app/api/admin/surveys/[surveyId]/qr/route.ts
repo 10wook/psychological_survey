@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
+import { assertOwnsSurvey } from "@/lib/ownership";
 
 type Params = { params: Promise<{ surveyId: string }> };
 
@@ -24,8 +25,9 @@ function resolveBaseUrl(req: NextRequest): string {
 
 // QR 코드 생성 (문서 6.7). 설문 공개 URL 을 담은 PNG data URL 반환.
 export const GET = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { surveyId } = await params;
+  await assertOwnsSurvey(user, surveyId);
 
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },

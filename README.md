@@ -140,6 +140,16 @@ seed 로 생성됩니다. 기본값은 `.env` 의 `SEED_ADMIN_EMAIL` / `SEED_ADM
 - CSV 는 한국어 Excel 호환을 위해 **UTF-8 BOM** 기본 활성화
 - 파일명: `survey_{surveyId}_{yyyyMMdd_HHmm}.{csv|xlsx}`
 
+
+## 보안 (Supabase / 인가)
+
+이 앱은 Supabase를 **Postgres 호스트로만** 사용합니다. `@supabase/supabase-js`·anon 키·Data API는 사용하지 않으며, DB 접근은 서버사이드 Prisma뿐입니다.
+
+- **RLS**: 모든 `public` 테이블에 Row-Level Security를 켜 두었고, anon/authenticated용 허용 POLICY는 없습니다(deny-by-default). Prisma 연결(테이블 오너)은 RLS를 우회합니다.
+- **연구자 격리**: `RESEARCHER`는 본인이 만든 Scale/Survey(및 그 응답)만 관리합니다. `ADMIN`은 전체 접근. 타 연구자의 **PUBLISHED/LOCKED** 척도 버전만 설문에 부착할 수 있습니다.
+- **세션**: `SESSION_SECRET`으로 세션 쿠키(`psych_session`)에 HMAC 서명을 적용합니다. 프로덕션에서는 반드시 긴 랜덤 값을 설정하세요.
+- **배포 후 확인**: Supabase Dashboard → Advisors에서 `rls_disabled_in_public`이 사라졌는지 확인하고, DB 비밀번호·시드 관리자 비밀번호를 기본값에서 회전하세요.
+
 ## 배포 방법 (Supabase + Vercel 권장)
 
 1. Supabase 프로젝트 생성 → `DATABASE_URL`(pooler), `DIRECT_URL`(direct) 확보

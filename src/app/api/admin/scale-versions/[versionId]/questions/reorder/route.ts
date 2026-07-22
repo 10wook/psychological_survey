@@ -4,13 +4,15 @@ import { requireStaff } from "@/lib/auth";
 import { handler, ok } from "@/lib/http";
 import { reorderQuestionsSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
 // 문항 순서 변경 (문서 6.3).
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
   await assertScaleVersionEditable(versionId);
 
   const { orderedIds } = reorderQuestionsSchema.parse(await req.json());

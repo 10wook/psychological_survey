@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { cloneVersionContent } from "@/lib/scaleClone";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsScale } from "@/lib/ownership";
 
 type Params = { params: Promise<{ scaleId: string }> };
 
@@ -11,6 +12,7 @@ type Params = { params: Promise<{ scaleId: string }> };
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { scaleId } = await params;
+  await assertOwnsScale(user, scaleId);
 
   const scale = await prisma.scale.findUnique({
     where: { id: scaleId },

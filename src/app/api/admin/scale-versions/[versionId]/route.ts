@@ -6,12 +6,14 @@ import { updateScaleVersionSchema } from "@/lib/validation";
 import { assertScaleVersionEditable, shouldLockScaleVersion } from "@/lib/lock";
 import { normalizeLikertLabels, usesLikertRange } from "@/lib/likertLabels";
 import { Prisma } from "@prisma/client";
+import { assertOwnsScaleVersion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ versionId: string }> };
 
 export const GET = handler(async (_req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
   const version = await prisma.scaleVersion.findUnique({
     where: { id: versionId },
     include: {
@@ -29,8 +31,9 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
 });
 
 export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { versionId } = await params;
+  await assertOwnsScaleVersion(user, versionId);
   await assertScaleVersionEditable(versionId);
   const input = updateScaleVersionSchema.parse(await req.json());
 

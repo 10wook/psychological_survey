@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { canViewPii, requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { presentedIndexMap } from "@/lib/questionOrder";
+import { assertOwnsSurveyResponse } from "@/lib/ownership";
 
 type Params = { params: Promise<{ responseId: string }> };
 
@@ -10,6 +11,7 @@ type Params = { params: Promise<{ responseId: string }> };
 export const GET = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { responseId } = await params;
+  await assertOwnsSurveyResponse(user, responseId);
   const wantsPii = new URL(req.url).searchParams.get("pii") === "1" && canViewPii(user);
 
   const response = await prisma.surveyResponse.findUnique({

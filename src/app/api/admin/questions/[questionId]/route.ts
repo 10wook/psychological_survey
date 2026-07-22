@@ -4,12 +4,14 @@ import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { updateQuestionSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
+import { assertOwnsQuestion } from "@/lib/ownership";
 
 type Params = { params: Promise<{ questionId: string }> };
 
 export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { questionId } = await params;
+  await assertOwnsQuestion(user, questionId);
 
   const existing = await prisma.question.findUnique({ where: { id: questionId } });
   if (!existing) throw notFound("문항을 찾을 수 없습니다.");
@@ -56,8 +58,9 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
 });
 
 export const DELETE = handler(async (_req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { questionId } = await params;
+  await assertOwnsQuestion(user, questionId);
 
   const existing = await prisma.question.findUnique({ where: { id: questionId } });
   if (!existing) throw notFound("문항을 찾을 수 없습니다.");

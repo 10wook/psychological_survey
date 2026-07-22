@@ -1,15 +1,17 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
-import { handler, notFound, ok } from "@/lib/http";
+import { handler, ok } from "@/lib/http";
 import { updateScaleSchema } from "@/lib/validation";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsScale } from "@/lib/ownership";
 
 type Params = { params: Promise<{ scaleId: string }> };
 
 export const GET = handler(async (_req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { scaleId } = await params;
+  await assertOwnsScale(user, scaleId);
   const scale = await prisma.scale.findUnique({
     where: { id: scaleId },
     include: {
@@ -25,7 +27,6 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       },
     },
   });
-  if (!scale) throw notFound("척도를 찾을 수 없습니다.");
   return ok({ scale });
 });
 
@@ -34,8 +35,8 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
   const { scaleId } = await params;
   const input = updateScaleSchema.parse(await req.json());
 
-  const existing = await prisma.scale.findUnique({ where: { id: scaleId } });
-  if (!existing) throw notFound("척도를 찾을 수 없습니다.");
+  await assertOwnsScale(user, scaleId);
+  const existing = await prisma.scale.findUniqueOrThrow({ where: { id: scaleId } });
 
   const scale = await prisma.scale.update({
     where: { id: scaleId },

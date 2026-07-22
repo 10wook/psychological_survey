@@ -5,6 +5,7 @@ import { forbidden, notFound } from "@/lib/http";
 import { exportOptionsSchema } from "@/lib/validation";
 import { exportSurvey } from "@/lib/export";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import { assertOwnsSurvey } from "@/lib/ownership";
 
 type Params = { params: Promise<{ surveyId: string }> };
 
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest, ctx: Params) {
   try {
     const user = await requireStaff();
     const { surveyId } = await ctx.params;
+    await assertOwnsSurvey(user, surveyId);
 
     const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
     if (!survey) throw notFound("설문을 찾을 수 없습니다.");

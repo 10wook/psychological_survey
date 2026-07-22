@@ -6,11 +6,13 @@ import { handler, ok } from "@/lib/http";
 import { createScaleSchema } from "@/lib/validation";
 import { writeAudit, getClientIp } from "@/lib/audit";
 import { normalizeLikertLabels, usesLikertRange } from "@/lib/likertLabels";
+import { ownedScaleWhere } from "@/lib/ownership";
 
 // GET: 척도 목록 (최신 버전 요약 포함)
 export const GET = handler(async () => {
-  await requireStaff();
+  const user = await requireStaff();
   const scales = await prisma.scale.findMany({
+    where: ownedScaleWhere(user),
     orderBy: { updatedAt: "desc" },
     include: {
       versions: {

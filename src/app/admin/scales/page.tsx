@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { ownedScaleWhere } from "@/lib/ownership";
 import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function ScalesPage() {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
   const scales = await prisma.scale.findMany({
+    where: ownedScaleWhere(user),
     orderBy: { updatedAt: "desc" },
     include: {
       versions: {

@@ -5,10 +5,15 @@ import { badRequest, handler, ok } from "@/lib/http";
 import { createSurveySchema } from "@/lib/validation";
 import { generatePublicId } from "@/lib/ids";
 import { writeAudit, getClientIp } from "@/lib/audit";
+import {
+  assertReadableScaleVersionForSurvey,
+  ownedSurveyWhere,
+} from "@/lib/ownership";
 
 export const GET = handler(async () => {
-  await requireStaff();
+  const user = await requireStaff();
   const surveys = await prisma.survey.findMany({
+    where: ownedSurveyWhere(user),
     orderBy: { updatedAt: "desc" },
     include: {
       _count: { select: { responses: true, surveyScales: true } },
@@ -23,16 +28,12 @@ export const POST = handler(async (req: NextRequest) => {
 
   // 연결하려는 척도 버전이 게시/잠금 상태인지 확인 (DRAFT 척도는 설문에 넣지 않음)
   if (input.scales.length > 0) {
-    const versionIds = input.scales.map((s) => s.scaleVersionId);
-    const versions = await prisma.scaleVersion.findMany({
-      where: { id: { in: versionIds } },
-      select: { id: true, status: true },
-    });
-    if (versions.length !== versionIds.length) {
-      throw badRequest("존재하지 않는 척도 버전이 포함되어 있습니다.");
+    for (const s of input.scales) {
+      const version = await assertReadableScaleVersionForSurvey(user, s.scaleVersionId);
+      if (version.status !== "PUBLISHED" && version.status !== "LOCKED") {
+        throw badRequest("게시되지 않은(DRAFT) 척도 버전은 설문에 추가할 수 없습니다.");
+      }
     }
-    const draft = versions.find((v) => v.status === "DRAFT");
-    if (draft) throw badRequest("게시되지 않은(DRAFT) 척도 버전은 설문에 추가할 수 없습니다.");
   }
 
   const survey = await prisma.survey.create({

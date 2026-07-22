@@ -4,12 +4,14 @@ import { requireStaff } from "@/lib/auth";
 import { handler, notFound, ok } from "@/lib/http";
 import { updateSubfactorSchema } from "@/lib/validation";
 import { assertScaleVersionEditable } from "@/lib/lock";
+import { assertOwnsSubfactor } from "@/lib/ownership";
 
 type Params = { params: Promise<{ subfactorId: string }> };
 
 export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { subfactorId } = await params;
+  await assertOwnsSubfactor(user, subfactorId);
 
   const existing = await prisma.subfactor.findUnique({ where: { id: subfactorId } });
   if (!existing) throw notFound("하위요인을 찾을 수 없습니다.");
@@ -24,8 +26,9 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
 });
 
 export const DELETE = handler(async (_req: NextRequest, { params }: Params) => {
-  await requireStaff();
+  const user = await requireStaff();
   const { subfactorId } = await params;
+  await assertOwnsSubfactor(user, subfactorId);
 
   const existing = await prisma.subfactor.findUnique({ where: { id: subfactorId } });
   if (!existing) throw notFound("하위요인을 찾을 수 없습니다.");

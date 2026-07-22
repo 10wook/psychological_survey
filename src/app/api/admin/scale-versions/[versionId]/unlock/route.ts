@@ -7,9 +7,7 @@ import { writeAudit, getClientIp } from "@/lib/audit";
 
 type Params = { params: Promise<{ versionId: string }> };
 
-// 척도 버전 잠금 해제.
-// 진행 중(게시·잠금) 설문에서 응답이 시작된 경우에만 차단.
-// 설문이 종료되었거나 아직 응답이 없으면 해제 가능 (이슈 #1).
+// 척도 버전 잠금 해제. 응답/채점 또는 게시·종료·잠금·보관 설문에 쓰이면 차단.
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { versionId } = await params;
@@ -22,7 +20,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
 
   if (await shouldLockScaleVersion(versionId)) {
     throw forbidden(
-      "진행 중인 설문에서 응답이 시작된 척도 버전은 잠금 해제할 수 없습니다. 설문을 종료하거나 새 버전을 생성하세요.",
+      "응답이 있거나 설문에 사용 중인 척도 버전은 잠금 해제할 수 없습니다. 수정하려면 새 버전을 생성하세요.",
     );
   }
 

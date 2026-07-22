@@ -76,10 +76,7 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     void refreshLock();
   }, [refreshLock]);
 
-  // DRAFT·PUBLISHED 이고 진행 중 설문 응답이 없으면 편집 가능.
-  // LOCKED 는 잠금 해제 후 PUBLISHED 에서 수정한다.
-  const editable =
-    (version?.status === "DRAFT" || version?.status === "PUBLISHED") && !locked;
+  const editable = version?.status === "DRAFT" && !locked;
 
   function flash(msg: string) {
     setNotice(msg);
@@ -113,7 +110,7 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
   async function unlockVersion() {
     if (!versionId) return;
     const data = await handle(api.post(`/api/admin/scale-versions/${versionId}/unlock`));
-    if (data) flash("척도 버전 잠금을 해제했습니다. 이제 문항을 수정할 수 있습니다.");
+    if (data) flash("척도 버전 잠금을 해제했습니다.");
   }
 
   async function createVersion() {
@@ -134,19 +131,6 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     else setError(res.error.message);
   }
 
-  async function toggleActive() {
-    if (!scale) return;
-    const next = !scale.isActive;
-    const label = next ? "활성화" : "비활성화(삭제)";
-    if (!next && !window.confirm("이 척도를 비활성화할까요? 새 설문에는 선택할 수 없게 됩니다.")) {
-      return;
-    }
-    const data = await handle(
-      api.patch(`/api/admin/scales/${scaleId}/active`, { isActive: next }),
-    );
-    if (data) flash(`척도를 ${label}했습니다.`);
-  }
-
   if (loading && !scale) return <p className="text-sm text-slate-500">불러오는 중...</p>;
   if (!scale) return <Alert variant="error">{error ?? "척도를 찾을 수 없습니다."}</Alert>;
 
@@ -154,12 +138,7 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {scale.name}
-            {!scale.isActive && (
-              <span className="ml-2 text-sm font-normal text-slate-400">· 비활성</span>
-            )}
-          </h1>
+          <h1 className="text-xl font-bold text-slate-900">{scale.name}</h1>
           <p className="text-xs text-slate-500">{scale.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -169,20 +148,11 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
           <Button variant="secondary" size="sm" onClick={createVersion}>
             새 버전
           </Button>
-          <Button
-            variant={scale.isActive ? "danger" : "secondary"}
-            size="sm"
-            onClick={toggleActive}
-          >
-            {scale.isActive ? "비활성화(삭제)" : "다시 활성화"}
-          </Button>
         </div>
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
       {notice && <Alert variant="success">{notice}</Alert>}
-
-      <ScaleMetaEditor scale={scale} onSaved={load} setError={setError} flash={flash} />
 
       {/* 버전 선택 */}
       <Card className="p-4">
@@ -206,27 +176,21 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
 
       {version && (
         <>
-          {locked && (
+          {locked && version.status !== "DRAFT" && (
             <Alert variant="warning">
-              이 버전은 진행 중인 설문에서 응답이 시작되어 수정할 수 없습니다.
-              설문을 종료한 뒤 잠금 해제하거나, “새 버전”을 생성하세요.
+              이 버전은 응답이 시작되었거나 게시된 설문에 사용 중이라 수정할 수 없습니다.
+              수정하려면 “새 버전”을 생성하세요. 응답이 있거나 설문에 쓰인 버전은 잠금 해제할 수 없습니다.
             </Alert>
           )}
           {!locked && version.status === "LOCKED" && (
             <Alert variant="info">
-              설문이 종료되었거나 아직 응답이 없어 잠금 해제할 수 있습니다.
-              잠금 해제 후 문항을 수정할 수 있습니다. 이미 연결된 설문은 이 버전을 고정하므로,
-              새 설문에는 수정본을 다시 연결하세요.
+              이 버전은 잠겨 있지만 아직 설문/응답에 쓰이지 않아 잠금 해제할 수 있습니다.
+              설문은 특정 척도 버전을 고정하므로, 개시된 설문에는 이후 DRAFT 수정이 반영되지 않습니다.
             </Alert>
-          )}
-          {!locked && version.status === "PUBLISHED" && (
-            <p className="text-xs text-slate-500">
-              게시된 버전입니다. 진행 중 설문에 응답이 없으면 바로 수정할 수 있습니다.
-            </p>
           )}
           {version.status === "DRAFT" && (
             <p className="text-xs text-slate-500">
-              설문은 특정 척도 버전을 고정합니다. 잠긴 버전을 고치려면 잠금 해제하거나 새 버전을 만드세요.
+              설문은 특정 척도 버전을 고정합니다. 잠긴 버전을 고치려면 새 버전을 만든 뒤 새 설문에 연결하세요.
             </p>
           )}
 
@@ -273,65 +237,6 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
         </>
       )}
     </div>
-  );
-}
-
-// --- 척도 메타데이터 (이름·설명) -------------------------------------------
-function ScaleMetaEditor({
-  scale,
-  onSaved,
-  setError,
-  flash,
-}: {
-  scale: ScaleDTO;
-  onSaved: () => Promise<void>;
-  setError: (m: string | null) => void;
-  flash: (m: string) => void;
-}) {
-  const [name, setName] = useState(scale.name);
-  const [description, setDescription] = useState(scale.description ?? "");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setName(scale.name);
-    setDescription(scale.description ?? "");
-  }, [scale]);
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    const res = await api.patch<{ scale: ScaleDTO }>(`/api/admin/scales/${scale.id}`, {
-      name: name.trim(),
-      description: description.trim() || undefined,
-    });
-    setSaving(false);
-    if (!res.ok) {
-      setError(res.error.message);
-      return;
-    }
-    await onSaved();
-    flash("척도 정보를 저장했습니다.");
-  }
-
-  return (
-    <Card className="space-y-3 p-4">
-      <h2 className="text-sm font-semibold text-slate-800">척도 정보</h2>
-      <Field label="척도명">
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      <Field label="설명">
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-      </Field>
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={save}
-          disabled={saving || !name.trim() || (name === scale.name && description === (scale.description ?? ""))}
-        >
-          {saving ? "저장 중..." : "정보 저장"}
-        </Button>
-      </div>
-    </Card>
   );
 }
 

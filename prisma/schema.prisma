@@ -299,6 +299,7 @@ enum ScaleOrderMode {
 }
 
 // 응답자에게 척도를 어떤 이름으로 노출할지. 블라인드 설문 등을 위해 선택.
+// 복수 선택 가능: SurveyScale.displayModes 에 배열로 저장.
 enum ScaleDisplayMode {
   NAME // 척도 제목(Scale.name) 노출
   DESCRIPTION // 척도 설명(Scale.description) 노출
@@ -324,7 +325,8 @@ model SurveyScale {
   // 설문의 questionOrderMode 가 SHUFFLE_ALL 일 때, 이 척도의 문항을 전체 셔플 풀에 포함할지.
   includeInGlobalShuffle Boolean    @default(true)
   pinPosition      ScalePinPosition @default(NONE)
-  displayMode      ScaleDisplayMode @default(NAME)
+  // 응답자에게 보여줄 척도 소개 항목(복수 선택). 예: [NAME, DESCRIPTION]
+  displayModes     ScaleDisplayMode[] @default([NAME])
   displayLabel     String?
 
   @@unique([surveyId, scaleVersionId])

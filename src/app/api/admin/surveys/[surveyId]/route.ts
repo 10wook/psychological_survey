@@ -67,8 +67,10 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
           shuffleQuestions: s.shuffleQuestions ?? false,
           includeInGlobalShuffle: s.includeInGlobalShuffle ?? true,
           pinPosition: s.pinPosition ?? "NONE",
-          displayMode: s.displayMode ?? "NAME",
-          displayLabel: s.displayMode === "CUSTOM" ? (s.displayLabel ?? null) : null,
+          displayModes: s.displayModes ?? ["NAME"],
+          displayLabel: (s.displayModes ?? []).includes("CUSTOM")
+            ? (s.displayLabel ?? null)
+            : null,
         })),
       });
     }

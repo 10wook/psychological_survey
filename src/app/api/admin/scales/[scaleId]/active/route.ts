@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
@@ -28,6 +29,9 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
     action: isActive ? "SCALE_ACTIVATED" : "SCALE_DEACTIVATED",
     ipAddress: getClientIp(req),
   });
+
+  revalidatePath("/admin/scales");
+  revalidatePath(`/admin/scales/${scaleId}`);
 
   return ok({ scale });
 });

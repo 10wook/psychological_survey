@@ -10,8 +10,8 @@ export const genderSelectableEnum = z.enum(["MALE", "FEMALE", "OTHER"], {
 
 const currentYear = new Date().getFullYear();
 
-/** 이메일·연락처 수집 목적별 동의 (필수) */
-const piiContactConsents = {
+/** 회원가입: 이메일·연락처 수집 목적별 동의 (필수) */
+const registerPiiContactConsents = {
   consentResultDelivery: z.literal(true, {
     errorMap: () => ({ message: "응답 결과 발송 동의는 필수입니다." }),
   }),
@@ -35,7 +35,7 @@ export const registerSchema = z
     birthDay: z.number().int().min(1).max(31),
     gender: genderSelectableEnum,
     phone: z.string().min(1, "연락처를 입력하세요."),
-    ...piiContactConsents,
+    ...registerPiiContactConsents,
     consentPrivacy: z.literal(true, {
       errorMap: () => ({ message: "개인정보 수집 동의는 필수입니다." }),
     }),
@@ -156,16 +156,37 @@ export const questionOrderModeEnum = z.enum(["SCALE_GROUPED", "SHUFFLE_ALL"]);
 export const scaleOrderModeEnum = z.enum(["FIXED", "SHUFFLE"]);
 export const scalePinPositionEnum = z.enum(["NONE", "FIRST", "LAST"]);
 
-export const surveyScaleInputSchema = z.object({
-  scaleVersionId: z.string().min(1),
-  displayOrder: z.number().int().optional(),
-  isRequired: z.boolean().optional(),
-  shuffleQuestions: z.boolean().optional(),
-  includeInGlobalShuffle: z.boolean().optional(),
-  pinPosition: scalePinPositionEnum.optional(),
-  displayMode: scaleDisplayModeEnum.optional(),
-  displayLabel: z.string().max(200).nullish(),
-});
+export const surveyScaleInputSchema = z
+  .object({
+    scaleVersionId: z.string().min(1),
+    displayOrder: z.number().int().optional(),
+    isRequired: z.boolean().optional(),
+    shuffleQuestions: z.boolean().optional(),
+    includeInGlobalShuffle: z.boolean().optional(),
+    pinPosition: scalePinPositionEnum.optional(),
+    /** @deprecated displayModes 사용. 하위 호환용 단일 값 */
+    displayMode: scaleDisplayModeEnum.optional(),
+    displayModes: z.array(scaleDisplayModeEnum).min(1).optional(),
+    displayLabel: z.string().max(200).nullish(),
+  })
+  .transform((v) => {
+    const modes =
+      v.displayModes && v.displayModes.length > 0
+        ? v.displayModes
+        : v.displayMode
+          ? [v.displayMode]
+          : (["NAME"] as const);
+    return {
+      scaleVersionId: v.scaleVersionId,
+      displayOrder: v.displayOrder,
+      isRequired: v.isRequired,
+      shuffleQuestions: v.shuffleQuestions,
+      includeInGlobalShuffle: v.includeInGlobalShuffle,
+      pinPosition: v.pinPosition,
+      displayModes: [...new Set(modes)],
+      displayLabel: v.displayLabel,
+    };
+  });
 
 export const createSurveySchema = z.object({
   title: z.string().min(1, "설문 제목을 입력하세요."),
@@ -200,11 +221,19 @@ export const saveAnswersSchema = z.object({
 });
 
 // --- 비회원 응답 시작 --------------------------------------------------
+// 연락처(이메일·전화)는 선택. 동의도 선택이며, 동의 시에만 UI에서 필드를 노출한다.
 export const guestStartSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요."),
-  email: z.string().email("올바른 이메일을 입력하세요."),
-  phone: z.string().min(1, "연락처를 입력하세요."),
-  ...piiContactConsents,
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().email("올바른 이메일을 입력하세요.").optional(),
+  ),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  consentResultDelivery: z.boolean().optional().default(false),
+  consentPersonalIdentification: z.boolean().optional().default(false),
   birthYear: z.number().int().min(1900).max(currentYear),
   birthMonth: z.number().int().min(1).max(12),
   birthDay: z.number().int().min(1).max(31),

@@ -138,14 +138,14 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       anonymousCode: formatAnonymousCode(count + 1),
       isGuest: true,
       guestName: guest.name,
-      guestEmail: guest.email,
-      guestPhone: guest.phone,
+      guestEmail: guest.email ?? null,
+      guestPhone: guest.phone ?? null,
       guestBirthYear: guest.birthYear,
       guestBirthMonth: guest.birthMonth,
       guestBirthDay: guest.birthDay,
       guestGender: guest.gender,
-      guestConsentResultDelivery: guest.consentResultDelivery,
-      guestConsentPersonalId: guest.consentPersonalIdentification,
+      guestConsentResultDelivery: guest.consentResultDelivery ?? false,
+      guestConsentPersonalId: guest.consentPersonalIdentification ?? false,
     },
   });
 

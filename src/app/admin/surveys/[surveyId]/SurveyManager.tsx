@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { Alert, Badge, Button, Card, LinkButton } from "@/components/ui";
 
@@ -31,6 +32,7 @@ interface SurveyDTO {
 }
 
 export function SurveyManager({ surveyId }: { surveyId: string }) {
+  const router = useRouter();
   const [survey, setSurvey] = useState<SurveyDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -59,6 +61,20 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
       flash(msg);
       await load();
     }
+  }
+
+  async function archiveSurvey() {
+    if (!window.confirm("이 설문을 삭제(보관)할까요? 목록의 종료 탭에서 확인할 수 있습니다.")) {
+      return;
+    }
+    setError(null);
+    const res = await api.post(`/api/admin/surveys/${surveyId}/archive`);
+    if (!res.ok) {
+      setError(res.error.message);
+      return;
+    }
+    router.push("/admin/surveys?tab=ended");
+    router.refresh();
   }
 
   const loadQr = useCallback(async () => {
@@ -125,18 +141,30 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
           로그인 {survey.requireLogin ? "필수" : "선택"} · 결과 공개{" "}
           {survey.showResult ? "O" : "X"} · 중복응답 {survey.allowDuplicate ? "허용" : "불가"}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {survey.status === "DRAFT" && (
             <Button size="sm" onClick={() => act("publish", "설문을 게시했습니다.")}>
               게시
             </Button>
           )}
           {survey.status === "PUBLISHED" && (
-            <Button size="sm" variant="secondary" onClick={() => act("close", "설문을 종료했습니다.")}>
-              종료
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => {
+                if (!window.confirm("설문을 종료할까요? 새 응답을 받지 않습니다.")) return;
+                void act("close", "설문을 종료했습니다.");
+              }}
+            >
+              설문 종료
             </Button>
           )}
-          {survey.status !== "DRAFT" && survey.status !== "LOCKED" && (
+          {survey.status === "CLOSED" && (
+            <Button size="sm" onClick={() => act("reopen", "설문을 다시 게시했습니다.")}>
+              다시 게시
+            </Button>
+          )}
+          {survey.status !== "DRAFT" && survey.status !== "LOCKED" && survey.status !== "ARCHIVED" && (
             <Button size="sm" variant="secondary" onClick={() => act("lock", "설문을 잠갔습니다.")}>
               잠금
             </Button>
@@ -150,11 +178,16 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
               잠금 해제
             </Button>
           )}
+          {survey.status !== "PUBLISHED" && survey.status !== "ARCHIVED" && (
+            <Button size="sm" variant="ghost" onClick={archiveSurvey}>
+              삭제
+            </Button>
+          )}
         </div>
       </Card>
 
       {/* 배포 URL & QR */}
-      {survey.status !== "DRAFT" && (
+      {survey.status !== "DRAFT" && survey.status !== "ARCHIVED" && (
         <Card className="space-y-3 p-4">
           <h2 className="text-sm font-semibold text-slate-900">배포</h2>
           {isPublished ? (

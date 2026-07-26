@@ -144,7 +144,10 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     const data = await handle(
       api.patch(`/api/admin/scales/${scaleId}/active`, { isActive: next }),
     );
-    if (data) flash(`척도를 ${label}했습니다.`);
+    if (data) {
+      flash(`척도를 ${label}했습니다.`);
+      router.refresh();
+    }
   }
 
   if (loading && !scale) return <p className="text-sm text-slate-500">불러오는 중...</p>;
@@ -154,12 +157,10 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {scale.name}
-            {!scale.isActive && (
-              <span className="ml-2 text-sm font-normal text-slate-400">· 비활성</span>
-            )}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900">{scale.name}</h1>
+            {!scale.isActive && <Badge value="INACTIVE" />}
+          </div>
           <p className="text-xs text-slate-500">{scale.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">

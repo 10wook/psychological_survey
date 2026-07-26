@@ -49,7 +49,7 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
   for (const ss of surveyScales) {
     scaleLabelById.set(
       ss.id,
-      scaleDisplayLabel(ss.displayMode, {
+      scaleDisplayLabel(ss.displayModes, {
         name: ss.scaleVersion.scale.name,
         description: ss.scaleVersion.scale.description,
         displayLabel: ss.displayLabel,

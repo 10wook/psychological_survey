@@ -9,7 +9,7 @@ export const GET = handler(async () => {
     where: { status: { in: ["PUBLISHED", "LOCKED"] }, scale: { isActive: true } },
     orderBy: [{ scale: { name: "asc" } }, { versionNumber: "desc" }],
     include: {
-      scale: { select: { name: true } },
+      scale: { select: { name: true, description: true } },
       _count: { select: { questions: { where: { isActive: true } } } },
     },
   });

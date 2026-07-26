@@ -183,9 +183,23 @@ const badgeStyles: Record<string, string> = {
   IN_PROGRESS: "bg-blue-100 text-blue-700",
   COMPLETED: "bg-green-100 text-green-700",
   ABANDONED: "bg-red-100 text-red-600",
+  INACTIVE: "bg-red-100 text-red-700",
 };
 
-export function Badge({ value }: { value: string }) {
+const badgeLabels: Record<string, string> = {
+  DRAFT: "초안",
+  PUBLISHED: "게시됨",
+  LOCKED: "잠금",
+  CLOSED: "종료",
+  ARCHIVED: "보관",
+  NOT_STARTED: "미시작",
+  IN_PROGRESS: "진행 중",
+  COMPLETED: "완료",
+  ABANDONED: "중단",
+  INACTIVE: "비활성화",
+};
+
+export function Badge({ value, label }: { value: string; label?: string }) {
   return (
     <span
       className={cn(
@@ -193,7 +207,7 @@ export function Badge({ value }: { value: string }) {
         badgeStyles[value] ?? "bg-slate-100 text-slate-600",
       )}
     >
-      {value}
+      {label ?? badgeLabels[value] ?? value}
     </span>
   );
 }

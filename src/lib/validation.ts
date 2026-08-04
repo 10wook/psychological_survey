@@ -188,11 +188,15 @@ export const surveyScaleInputSchema = z
     };
   });
 
+// 비회원 연락처 수집 방식 (이슈 #11)
+export const guestContactModeEnum = z.enum(["NONE", "OPTIONAL", "REQUIRED"]);
+
 export const createSurveySchema = z.object({
   title: z.string().min(1, "설문 제목을 입력하세요."),
   description: z.string().optional(),
   instructions: z.string().optional(),
   requireLogin: z.boolean().default(true),
+  guestContactMode: guestContactModeEnum.default("OPTIONAL"),
   allowResume: z.boolean().default(true),
   allowDuplicate: z.boolean().default(false),
   showResult: z.boolean().default(true),
@@ -221,7 +225,9 @@ export const saveAnswersSchema = z.object({
 });
 
 // --- 비회원 응답 시작 --------------------------------------------------
-// 연락처(이메일·전화)는 선택. 동의도 선택이며, 동의 시에만 UI에서 필드를 노출한다.
+// 개인 식별을 위한 개인정보(이름·생년월일·성별) 수집 동의는 필수 (이슈 #11).
+// 연락처(이메일·전화) 수집 동의는 설문의 guestContactMode 에 따라 선택/필수이며,
+// 동의 시에만 UI 에서 연락처 필드를 노출한다.
 export const guestStartSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요."),
   email: z.preprocess(
@@ -233,7 +239,11 @@ export const guestStartSchema = z.object({
     z.string().min(1).optional(),
   ),
   consentResultDelivery: z.boolean().optional().default(false),
-  consentPersonalIdentification: z.boolean().optional().default(false),
+  consentPersonalIdentification: z.literal(true, {
+    errorMap: () => ({
+      message: "개인 식별을 위한 개인정보 수집·이용 동의는 필수입니다.",
+    }),
+  }),
   birthYear: z.number().int().min(1900).max(currentYear),
   birthMonth: z.number().int().min(1).max(12),
   birthDay: z.number().int().min(1).max(31),

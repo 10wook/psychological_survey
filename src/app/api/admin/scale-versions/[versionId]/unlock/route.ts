@@ -9,8 +9,8 @@ import { assertOwnsScaleVersion } from "@/lib/ownership";
 type Params = { params: Promise<{ versionId: string }> };
 
 // 척도 버전 잠금 해제.
-// 진행 중(게시·잠금) 설문에서 응답이 시작된 경우에만 차단.
-// 설문이 종료되었거나 아직 응답이 없으면 해제 가능 (이슈 #1).
+// 진행 중(게시·잠금) 설문에 사용 중이면 응답 여부와 무관하게 차단 (이슈 #10).
+// 연결된 설문이 모두 종료·보관·초안이면 해제 가능.
 export const POST = handler(async (req: NextRequest, { params }: Params) => {
   const user = await requireStaff();
   const { versionId } = await params;
@@ -24,7 +24,7 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
 
   if (await shouldLockScaleVersion(versionId)) {
     throw forbidden(
-      "진행 중인 설문에서 응답이 시작된 척도 버전은 잠금 해제할 수 없습니다. 설문을 종료하거나 새 버전을 생성하세요.",
+      "진행 중인 설문에 사용 중인 척도 버전은 잠금 해제할 수 없습니다. 설문을 종료하거나 새 버전을 생성하세요.",
     );
   }
 

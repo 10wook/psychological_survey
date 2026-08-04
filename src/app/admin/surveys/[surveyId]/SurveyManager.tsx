@@ -15,6 +15,7 @@ interface SurveyDTO {
   status: string;
   publicId: string;
   requireLogin: boolean;
+  guestContactMode: "NONE" | "OPTIONAL" | "REQUIRED";
   allowDuplicate: boolean;
   showResult: boolean;
   targetResponseCount: number | null;
@@ -138,8 +139,20 @@ export function SurveyManager({ surveyId }: { surveyId: string }) {
       {/* 상태 액션 */}
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <p className="text-sm text-slate-600">
-          로그인 {survey.requireLogin ? "필수" : "선택"} · 결과 공개{" "}
-          {survey.showResult ? "O" : "X"} · 중복응답 {survey.allowDuplicate ? "허용" : "불가"}
+          로그인 {survey.requireLogin ? "필수" : "선택"}
+          {!survey.requireLogin && (
+            <>
+              {" "}
+              · 비회원 연락처{" "}
+              {survey.guestContactMode === "REQUIRED"
+                ? "필수 수집"
+                : survey.guestContactMode === "NONE"
+                  ? "수집 안 함"
+                  : "선택 수집"}
+            </>
+          )}{" "}
+          · 결과 공개 {survey.showResult ? "O" : "X"} · 중복응답{" "}
+          {survey.allowDuplicate ? "허용" : "불가"}
         </p>
         <div className="flex flex-wrap gap-2">
           {survey.status === "DRAFT" && (

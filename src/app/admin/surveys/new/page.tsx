@@ -10,6 +10,13 @@ type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM";
 type QuestionOrderMode = "SCALE_GROUPED" | "SHUFFLE_ALL";
 type ScaleOrderMode = "FIXED" | "SHUFFLE";
 type ScalePinPosition = "NONE" | "FIRST" | "LAST";
+type GuestContactMode = "NONE" | "OPTIONAL" | "REQUIRED";
+
+const GUEST_CONTACT_OPTIONS: Array<{ mode: GuestContactMode; label: string; hint: string }> = [
+  { mode: "OPTIONAL", label: "선택 수집", hint: "응답자가 동의한 경우에만 이메일·연락처를 입력합니다." },
+  { mode: "REQUIRED", label: "필수 수집", hint: "연락처 수집 동의와 이메일 또는 연락처 입력이 필수입니다." },
+  { mode: "NONE", label: "수집 안 함", hint: "연락처 동의·입력란을 표시하지 않습니다." },
+];
 
 interface ScaleConfig {
   displayModes: ScaleDisplayMode[];
@@ -41,6 +48,7 @@ export default function NewSurveyPage() {
     description: "",
     instructions: "",
     requireLogin: true,
+    guestContactMode: "OPTIONAL" as GuestContactMode,
     allowDuplicate: false,
     showResult: true,
     targetResponseCount: "",
@@ -124,6 +132,7 @@ export default function NewSurveyPage() {
       description: form.description || undefined,
       instructions: form.instructions || undefined,
       requireLogin: form.requireLogin,
+      guestContactMode: form.guestContactMode,
       allowDuplicate: form.allowDuplicate,
       showResult: form.showResult,
       questionOrderMode: form.questionOrderMode,
@@ -456,6 +465,26 @@ export default function NewSurveyPage() {
               />
               비회원 응답 허용 (로그인 없이 참여 가능)
             </label>
+            {!form.requireLogin && (
+              <div className="ml-6 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-600">비회원 연락처 수집</p>
+                {GUEST_CONTACT_OPTIONS.map((opt) => (
+                  <label key={opt.mode} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      className="mt-0.5"
+                      name="guestContactMode"
+                      checked={form.guestContactMode === opt.mode}
+                      onChange={() => setForm((f) => ({ ...f, guestContactMode: opt.mode }))}
+                    />
+                    <span>
+                      {opt.label}
+                      <span className="block text-xs text-slate-400">{opt.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"

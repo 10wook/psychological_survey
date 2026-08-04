@@ -82,6 +82,7 @@ export const PATCH = handler(async (req: NextRequest, { params }: Params) => {
         description: input.description,
         instructions: input.instructions,
         requireLogin: input.requireLogin,
+        guestContactMode: input.guestContactMode,
         allowResume: input.allowResume,
         allowDuplicate: input.allowDuplicate,
         showResult: input.showResult,

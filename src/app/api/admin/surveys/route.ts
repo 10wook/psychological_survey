@@ -43,6 +43,7 @@ export const POST = handler(async (req: NextRequest) => {
       instructions: input.instructions,
       publicId: generatePublicId(),
       requireLogin: input.requireLogin,
+      guestContactMode: input.guestContactMode,
       allowResume: input.allowResume,
       allowDuplicate: input.allowDuplicate,
       showResult: input.showResult,

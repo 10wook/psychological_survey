@@ -6,11 +6,14 @@ import Link from "next/link";
 import { api } from "@/lib/client";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
+type GuestContactMode = "NONE" | "OPTIONAL" | "REQUIRED";
+
 interface Intro {
   title: string;
   description: string | null;
   instructions: string | null;
   requireLogin: boolean;
+  guestContactMode: GuestContactMode;
   notStarted: boolean;
   ended: boolean;
   totalQuestions: number;
@@ -51,8 +54,9 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
   const [hint, setHint] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showContactFields =
-    guestConsent.resultDelivery || guestConsent.personalIdentification;
+  // 연락처 수집 방식 (이슈 #11). 연락처 필드는 연락처 수집 동의(resultDelivery)에만 연동된다.
+  const contactMode: GuestContactMode = intro?.guestContactMode ?? "OPTIONAL";
+  const showContactFields = contactMode !== "NONE" && guestConsent.resultDelivery;
 
   useEffect(() => {
     void (async () => {
@@ -98,6 +102,20 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
       setError("성별을 선택하세요.");
       return;
     }
+    if (!guestConsent.personalIdentification) {
+      setError("개인 식별을 위한 개인정보 수집·이용 동의는 필수입니다.");
+      return;
+    }
+    if (contactMode === "REQUIRED") {
+      if (!guestConsent.resultDelivery) {
+        setError("이 설문은 응답 결과 발송을 위한 연락처 수집·이용 동의가 필요합니다.");
+        return;
+      }
+      if (!guest.email.trim() && !guest.phone.trim()) {
+        setError("이메일 또는 연락처를 입력해 주세요.");
+        return;
+      }
+    }
     setStarting(true);
     const res = await api.post<{ responseId: string }>(`/api/public/surveys/${publicId}/start`, {
       name: guest.name,
@@ -107,7 +125,7 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
       birthMonth: Number(guest.birthMonth),
       birthDay: Number(guest.birthDay),
       gender: guest.gender,
-      consentResultDelivery: guestConsent.resultDelivery,
+      consentResultDelivery: contactMode !== "NONE" && guestConsent.resultDelivery,
       consentPersonalIdentification: guestConsent.personalIdentification,
     });
     setStarting(false);
@@ -249,22 +267,8 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
 
           <fieldset className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <legend className="px-1 text-xs font-medium text-slate-600">
-              개인정보 수집 및 이용 동의 (선택)
+              개인정보 수집 및 이용 동의
             </legend>
-            <p className="text-xs text-slate-500">
-              연락처 수집에 동의하면 이메일·전화번호를 입력할 수 있습니다. 모두 선택 사항입니다.
-            </p>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={guestConsent.resultDelivery}
-                onChange={(e) =>
-                  setGuestConsent((c) => ({ ...c, resultDelivery: e.target.checked }))
-                }
-              />
-              <span>[선택] 응답 결과 발송을 위한 연락처 수집</span>
-            </label>
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -274,10 +278,38 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
                   setGuestConsent((c) => ({ ...c, personalIdentification: e.target.checked }))
                 }
               />
-              <span>[선택] 개인 식별을 위한 연락처 수집</span>
+              <span>[필수] 개인 식별을 위한 개인정보 수집·이용 동의</span>
             </label>
+            {contactMode !== "NONE" && (
+              <>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={guestConsent.resultDelivery}
+                    onChange={(e) =>
+                      setGuestConsent((c) => ({ ...c, resultDelivery: e.target.checked }))
+                    }
+                  />
+                  <span>
+                    [{contactMode === "REQUIRED" ? "필수" : "선택"}] 응답 결과 발송을 위한 연락처
+                    수집·이용 동의
+                  </span>
+                </label>
+                {!showContactFields && (
+                  <p className="text-xs text-slate-500">
+                    연락처 수집에 동의하면 이메일·전화번호를 입력할 수 있습니다.
+                  </p>
+                )}
+              </>
+            )}
             {showContactFields && (
               <div className="space-y-3 border-t border-slate-200 pt-3">
+                {contactMode === "REQUIRED" && (
+                  <p className="text-xs text-slate-500">
+                    이메일 또는 연락처 중 하나 이상을 입력해 주세요.
+                  </p>
+                )}
                 <Field label="이메일" htmlFor="g-email">
                   <Input
                     id="g-email"

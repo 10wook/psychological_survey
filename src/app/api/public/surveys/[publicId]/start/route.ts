@@ -132,20 +132,33 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
   }
 
   const guest = guestStartSchema.parse(body);
+
+  // 연락처 수집 방식 검증 (이슈 #11)
+  const contactMode = survey.guestContactMode;
+  if (contactMode === "REQUIRED") {
+    if (!guest.consentResultDelivery) {
+      throw badRequest("이 설문은 응답 결과 발송을 위한 연락처 수집·이용 동의가 필요합니다.");
+    }
+    if (!guest.email && !guest.phone) {
+      throw badRequest("이메일 또는 연락처를 입력해 주세요.");
+    }
+  }
+  const collectContact = contactMode !== "NONE" && guest.consentResultDelivery;
+
   const count = await prisma.participant.count();
   const participant = await prisma.participant.create({
     data: {
       anonymousCode: formatAnonymousCode(count + 1),
       isGuest: true,
       guestName: guest.name,
-      guestEmail: guest.email ?? null,
-      guestPhone: guest.phone ?? null,
+      guestEmail: collectContact ? (guest.email ?? null) : null,
+      guestPhone: collectContact ? (guest.phone ?? null) : null,
       guestBirthYear: guest.birthYear,
       guestBirthMonth: guest.birthMonth,
       guestBirthDay: guest.birthDay,
       guestGender: guest.gender,
-      guestConsentResultDelivery: guest.consentResultDelivery ?? false,
-      guestConsentPersonalId: guest.consentPersonalIdentification ?? false,
+      guestConsentResultDelivery: collectContact,
+      guestConsentPersonalId: guest.consentPersonalIdentification,
     },
   });
 

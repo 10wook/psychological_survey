@@ -52,6 +52,7 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       description: survey.description,
       instructions: survey.instructions,
       requireLogin: survey.requireLogin,
+      guestContactMode: survey.guestContactMode,
       showResult: survey.showResult,
       publicId: survey.publicId,
       notStarted,

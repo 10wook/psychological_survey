@@ -256,6 +256,13 @@ enum SurveyStatus {
   ARCHIVED
 }
 
+// 비회원 응답 시 연락처(이메일·전화) 수집 방식 (이슈 #11).
+enum GuestContactMode {
+  NONE // 수집하지 않음
+  OPTIONAL // 선택 수집 (동의 시에만 입력)
+  REQUIRED // 필수 수집 (동의 + 연락처 입력 필수)
+}
+
 model Survey {
   id                  String       @id @default(cuid())
   title               String
@@ -264,6 +271,8 @@ model Survey {
   status              SurveyStatus @default(DRAFT)
   publicId            String       @unique
   requireLogin        Boolean      @default(true)
+  // 비회원 응답 시 연락처 수집 방식 (이슈 #11)
+  guestContactMode    GuestContactMode @default(OPTIONAL)
   allowResume         Boolean      @default(true)
   allowDuplicate      Boolean      @default(false)
   showResult          Boolean      @default(true)

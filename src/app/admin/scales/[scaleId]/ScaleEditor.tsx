@@ -209,20 +209,20 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
         <>
           {locked && (
             <Alert variant="warning">
-              이 버전은 진행 중인 설문에서 응답이 시작되어 수정할 수 없습니다.
+              이 버전은 진행 중인 설문에 사용 중이라 잠금 해제·수정할 수 없습니다.
               설문을 종료한 뒤 잠금 해제하거나, “새 버전”을 생성하세요.
             </Alert>
           )}
           {!locked && version.status === "LOCKED" && (
             <Alert variant="info">
-              설문이 종료되었거나 아직 응답이 없어 잠금 해제할 수 있습니다.
+              연결된 설문이 모두 종료되어 잠금 해제할 수 있습니다.
               잠금 해제 후 문항을 수정할 수 있습니다. 이미 연결된 설문은 이 버전을 고정하므로,
               새 설문에는 수정본을 다시 연결하세요.
             </Alert>
           )}
           {!locked && version.status === "PUBLISHED" && (
             <p className="text-xs text-slate-500">
-              게시된 버전입니다. 진행 중 설문에 응답이 없으면 바로 수정할 수 있습니다.
+              게시된 버전입니다. 진행 중 설문에 사용되지 않았다면 바로 수정할 수 있습니다.
             </p>
           )}
           {version.status === "DRAFT" && (

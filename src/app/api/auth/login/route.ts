@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { loginSchema } from "@/lib/validation";
 import { createSession } from "@/lib/auth";
+import { claimGuestResponses } from "@/lib/claimGuestResponses";
 import { handler, ok, unauthorized } from "@/lib/http";
 
 export const POST = handler(async (req: NextRequest) => {
@@ -23,6 +24,9 @@ export const POST = handler(async (req: NextRequest) => {
     data: { lastLoginAt: new Date() },
   });
   await createSession(user.id);
+
+  // 이 브라우저에서 비회원으로 참여한 응답이 있으면 계정으로 귀속 (이슈 #15)
+  await claimGuestResponses(user.id);
 
   return ok({ id: user.id, email: user.email, role: user.role });
 });

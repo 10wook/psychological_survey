@@ -73,10 +73,15 @@ export function normalizeAndValidateAnswer(
       if (optionValues.size > 0 && !optionValues.has(raw)) {
         throw badRequest(`유효하지 않은 선택지입니다: ${q.code}`);
       }
-      const min = q.minScore ?? q.scaleVersion.minScore;
-      const max = q.maxScore ?? q.scaleVersion.maxScore;
-      if (!isRawScoreInRange(raw, min, max)) {
-        throw badRequest(`응답값이 허용 범위(${min}~${max})를 벗어났습니다: ${q.code}`);
+      // 리커트 점수 범위(min~max) 검증은 채점 대상인 LIKERT 문항에만 적용한다.
+      // SINGLE(단일선택) 문항의 보기 값은 점수가 아니므로, 보기가 6개 이상이어도
+      // 등록된 선택지이면 유효하다 (이슈 #14).
+      if (q.type === "LIKERT" || optionValues.size === 0) {
+        const min = q.minScore ?? q.scaleVersion.minScore;
+        const max = q.maxScore ?? q.scaleVersion.maxScore;
+        if (!isRawScoreInRange(raw, min, max)) {
+          throw badRequest(`응답값이 허용 범위(${min}~${max})를 벗어났습니다: ${q.code}`);
+        }
       }
       return { rawScore: raw, textValue: null, selectedValues: [], isEmpty: false };
     }

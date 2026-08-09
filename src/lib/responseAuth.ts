@@ -7,8 +7,10 @@ import { getCurrentUser, type SafeUser } from "@/lib/auth";
 // 회원: 세션 사용자가 응답의 참가자를 소유하면 통과.
 // 비회원: 응답별 쿠키(ra_<id>)의 토큰이 저장된 accessToken 과 일치하면 통과.
 
+export const RESPONSE_COOKIE_PREFIX = "ra_";
+
 export function responseCookieName(responseId: string): string {
-  return `ra_${responseId}`;
+  return `${RESPONSE_COOKIE_PREFIX}${responseId}`;
 }
 
 export function generateAccessToken(): string {

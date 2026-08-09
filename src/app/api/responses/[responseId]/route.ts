@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { handler, notFound, ok } from "@/lib/http";
 import { assertCanAccessResponse } from "@/lib/responseAuth";
-import { scaleDisplayLabel } from "@/lib/scaleDisplay";
+import { scaleDisplayLabel, scaleDisplayParts } from "@/lib/scaleDisplay";
 import { readOrderSections, type OrderInputScale } from "@/lib/questionOrder";
 
 type Params = { params: Promise<{ responseId: string }> };
@@ -46,15 +46,15 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
   type LoadedQuestion = (typeof surveyScales)[number]["scaleVersion"]["questions"][number];
   const questionById = new Map<string, LoadedQuestion>();
   const scaleLabelById = new Map<string, string>();
+  const scalePartsById = new Map<string, Array<{ mode: string; text: string }>>();
   for (const ss of surveyScales) {
-    scaleLabelById.set(
-      ss.id,
-      scaleDisplayLabel(ss.displayModes, {
-        name: ss.scaleVersion.scale.name,
-        description: ss.scaleVersion.scale.description,
-        displayLabel: ss.displayLabel,
-      }),
-    );
+    const displayArgs = {
+      name: ss.scaleVersion.scale.name,
+      description: ss.scaleVersion.scale.description,
+      displayLabel: ss.displayLabel,
+    };
+    scaleLabelById.set(ss.id, scaleDisplayLabel(ss.displayModes, displayArgs));
+    scalePartsById.set(ss.id, scaleDisplayParts(ss.displayModes, displayArgs));
     for (const q of ss.scaleVersion.questions) questionById.set(q.id, q);
   }
 
@@ -100,6 +100,10 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       scaleName: section.surveyScaleId
         ? scaleLabelById.get(section.surveyScaleId) ?? null
         : null,
+      // 제목/설명을 분리 렌더링하기 위한 구조화 파트 (이슈 #16)
+      scaleParts: section.surveyScaleId
+        ? scalePartsById.get(section.surveyScaleId) ?? []
+        : [],
       isRequired: section.isRequired,
       questions,
     };

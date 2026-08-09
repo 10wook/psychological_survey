@@ -24,6 +24,7 @@ interface ScaleDTO {
   surveyScaleId: string | null;
   scaleVersionId: string | null;
   scaleName: string | null;
+  scaleParts: Array<{ mode: string; text: string }>;
   isRequired: boolean;
   questions: QuestionDTO[];
 }
@@ -222,20 +223,33 @@ export function RespondForm({ responseId }: { responseId: string }) {
     router.push(`/respond/${responseId}/complete`);
   }
 
+  // '임시 저장됨'은 노출하지 않는다 (이슈 #16). 저장 중/실패만 안내.
   const saveLabel: Record<SaveState, string> = {
     idle: "",
     saving: "저장 중...",
-    saved: "임시 저장됨",
+    saved: "",
     error: "저장 실패",
   };
+
+  // 제목(첫 파트)은 볼드·큰 글씨, 설명(나머지 파트)은 줄바꿈해 노출 (이슈 #16)
+  const parts = scale.scaleParts ?? [];
+  const scaleTitle = parts[0]?.text ?? scale.scaleName ?? "설문 문항";
+  const scaleDescriptions = parts.slice(1).map((p) => p.text);
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-900">{scale.scaleName ?? "설문 문항"}</span>
-            <span className="text-xs text-slate-400" aria-live="polite">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-bold text-slate-900">{scaleTitle}</h1>
+              {scaleDescriptions.map((text, i) => (
+                <p key={i} className="mt-0.5 text-sm text-slate-600">
+                  {text}
+                </p>
+              ))}
+            </div>
+            <span className="shrink-0 text-xs text-slate-400" aria-live="polite">
               {saveLabel[saveState]}
             </span>
           </div>

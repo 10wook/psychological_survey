@@ -10,6 +10,9 @@ export interface DescriptiveStats {
   variance: number | null; // 표본 분산 (ddof = 1)
   standardDeviation: number | null; // 표본 표준편차
   median: number | null;
+  mode: number | null; // 최빈값. 동률이면 더 작은 값
+  skewness: number | null; // 표본 왜도 (Excel SKEW / n>=3)
+  kurtosis: number | null; // 초과 첨도 (Excel KURT / n>=4)
   min: number | null;
   max: number | null;
 }
@@ -59,6 +62,54 @@ export function maxValue(values: number[]): number | null {
   return Math.max(...values);
 }
 
+/** 최빈값. 빈 배열은 null, 동률이면 더 작은 값 */
+export function mode(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const freq = new Map<number, number>();
+  for (const v of values) {
+    freq.set(v, (freq.get(v) ?? 0) + 1);
+  }
+  let best: number | null = null;
+  let bestCount = 0;
+  for (const [v, c] of freq) {
+    if (c > bestCount || (c === bestCount && best !== null && v < best)) {
+      best = v;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * 표본 왜도 (Excel SKEW, 편향 보정 G1).
+ * n < 3 이거나 표준편차가 0이면 null.
+ */
+export function skewness(values: number[]): number | null {
+  const n = values.length;
+  if (n < 3) return null;
+  const m = mean(values)!;
+  const s = sampleStandardDeviation(values);
+  if (s === null || s === 0) return null;
+  const m3 = values.reduce((acc, v) => acc + ((v - m) / s) ** 3, 0);
+  return (n / ((n - 1) * (n - 2))) * m3;
+}
+
+/**
+ * 초과 첨도 (Excel KURT, 편향 보정 G2).
+ * n < 4 이거나 표준편차가 0이면 null.
+ */
+export function kurtosis(values: number[]): number | null {
+  const n = values.length;
+  if (n < 4) return null;
+  const m = mean(values)!;
+  const s = sampleStandardDeviation(values);
+  if (s === null || s === 0) return null;
+  const m4 = values.reduce((acc, v) => acc + ((v - m) / s) ** 4, 0);
+  const adj = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3));
+  const correction = (3 * (n - 1) ** 2) / ((n - 2) * (n - 3));
+  return adj * m4 - correction;
+}
+
 /** 결측(null/undefined/NaN)은 제외하고 완료 값만으로 계산 */
 export function describe(
   rawValues: Array<number | null | undefined>,
@@ -70,6 +121,9 @@ export function describe(
     variance: sampleVariance(values),
     standardDeviation: sampleStandardDeviation(values),
     median: median(values),
+    mode: mode(values),
+    skewness: skewness(values),
+    kurtosis: kurtosis(values),
     min: minValue(values),
     max: maxValue(values),
   };

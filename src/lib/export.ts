@@ -2,9 +2,10 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
 import type { ExportOptions } from "@/lib/validation";
 import { presentedIndexMap } from "@/lib/questionOrder";
+import { describe as describeStats } from "@/lib/statistics";
 
 // ===========================================================================
-// 데이터 내보내기 (문서 6.16 / 11장). Wide/Long, CSV/XLSX, 코드북.
+// 데이터 내보내기 (문서 6.16 / 11장, 이슈 #18). Wide/Long, CSV, XLSX 시트 분할.
 // ===========================================================================
 
 interface ExportQuestion {
@@ -12,6 +13,7 @@ interface ExportQuestion {
   code: string;
   content: string;
   isReverse: boolean;
+  subfactorId: string | null;
   subfactorName: string | null;
   scaleVersionId: string;
   scaleName: string;
@@ -28,6 +30,7 @@ interface ExportSubfactor {
 interface ExportScale {
   scaleVersionId: string;
   name: string;
+  maxScore: number;
 }
 
 interface ExportRow {
@@ -40,7 +43,9 @@ interface ExportRow {
   converted: Record<string, number | null>;
   presentedOrder: Record<string, number | null>;
   scaleTotals: Record<string, number | null>;
+  scaleRawTotals: Record<string, number | null>;
   subfactorTotals: Record<string, number | null>;
+  subfactorRawTotals: Record<string, number | null>;
 }
 
 export interface ExportData {
@@ -72,7 +77,7 @@ async function gatherData(surveyId: string, opts: ExportOptions): Promise<Export
 
   for (const ss of survey.surveyScales) {
     const v = ss.scaleVersion;
-    scales.push({ scaleVersionId: v.id, name: v.scale.name });
+    scales.push({ scaleVersionId: v.id, name: v.scale.name, maxScore: v.maxScore });
     const orderedSubfactors = [...v.subfactors].sort((a, b) => a.displayOrder - b.displayOrder);
     for (const s of orderedSubfactors) {
       subfactors.push({ id: s.id, name: s.name, scaleName: v.scale.name });
@@ -87,6 +92,7 @@ async function gatherData(surveyId: string, opts: ExportOptions): Promise<Export
         code: q.code,
         content: q.content,
         isReverse: q.isReverse,
+        subfactorId: q.subfactorId,
         subfactorName,
         scaleVersionId: v.id,
         scaleName: v.scale.name,
@@ -135,14 +141,27 @@ async function gatherData(surveyId: string, opts: ExportOptions): Promise<Export
     }
 
     const scaleTotals: Record<string, number | null> = {};
+    const scaleRawTotals: Record<string, number | null> = {};
     for (const sc of scales) {
       const sr = r.scaleResults.find((x) => x.scaleVersionId === sc.scaleVersionId);
       scaleTotals[sc.scaleVersionId] = sr?.convertedTotal ?? null;
+      scaleRawTotals[sc.scaleVersionId] = sr?.rawTotal ?? null;
     }
     const subfactorTotals: Record<string, number | null> = {};
+    const subfactorRawTotals: Record<string, number | null> = {};
     for (const sf of subfactors) {
       const sfr = r.subfactorResults.find((x) => x.subfactorId === sf.id);
       subfactorTotals[sf.id] = sfr?.totalScore ?? null;
+      let rawSum = 0;
+      let rawAny = false;
+      for (const q of questions) {
+        if (q.subfactorId !== sf.id) continue;
+        const val = raw[q.id];
+        if (val === null || val === undefined) continue;
+        rawSum += val;
+        rawAny = true;
+      }
+      subfactorRawTotals[sf.id] = rawAny ? rawSum : null;
     }
 
     // 회원은 프로필, 비회원은 게스트 필드에서 인적 정보를 가져온다.
@@ -163,7 +182,9 @@ async function gatherData(surveyId: string, opts: ExportOptions): Promise<Export
       converted,
       presentedOrder,
       scaleTotals,
+      scaleRawTotals,
       subfactorTotals,
+      subfactorRawTotals,
     };
   });
 
@@ -235,10 +256,15 @@ function buildWideColumns(data: ExportData, opts: ExportOptions): WideColumn[] {
     const push = (bottom: string, value: (r: ExportRow) => string | number) =>
       cols.push({ top: q.scaleName, mid: q.subfactorName ?? "", bottom, topKey, midKey, value });
     if (opts.includeRaw) push(base, (r) => r.raw[q.id] ?? "");
-    if (opts.includeConverted) push(`${base}_conv`, (r) => r.converted[q.id] ?? "");
+    if (opts.includeConverted) {
+      // 원점수와 함께일 때만 _conv 접미사 (한 시트에 둘 다 있을 때 구분)
+      const label = opts.includeRaw ? `${base}_conv` : base;
+      push(label, (r) => r.converted[q.id] ?? "");
+    }
     if (opts.includePresentedOrder) push(`${base}_order`, (r) => r.presentedOrder[q.id] ?? "");
   }
 
+  const useRawTotals = opts.includeRaw && !opts.includeConverted;
   if (opts.includeScaleTotals) {
     for (const s of data.scales) {
       cols.push({
@@ -247,7 +273,8 @@ function buildWideColumns(data: ExportData, opts: ExportOptions): WideColumn[] {
         bottom: `total_${s.name}`,
         topKey: "totals",
         midKey: `totals:${s.scaleVersionId}`,
-        value: (r) => r.scaleTotals[s.scaleVersionId] ?? "",
+        value: (r) =>
+          (useRawTotals ? r.scaleRawTotals[s.scaleVersionId] : r.scaleTotals[s.scaleVersionId]) ?? "",
       });
     }
   }
@@ -259,7 +286,8 @@ function buildWideColumns(data: ExportData, opts: ExportOptions): WideColumn[] {
         bottom: `sub_${sf.name}`,
         topKey: "subtotals",
         midKey: `subtotals:${sf.scaleName}`,
-        value: (r) => r.subfactorTotals[sf.id] ?? "",
+        value: (r) =>
+          (useRawTotals ? r.subfactorRawTotals[sf.id] : r.subfactorTotals[sf.id]) ?? "",
       });
     }
   }
@@ -324,13 +352,107 @@ function buildLongTable(data: ExportData, opts: ExportOptions): (string | number
   return rows;
 }
 
-function buildCodebook(data: ExportData): (string | number)[][] {
-  const header = ["variable", "question_code", "question_text", "scale", "subfactor", "reverse", "min", "max"];
+function statCell(value: number | null): string | number {
+  return value === null ? "" : value;
+}
+
+/** 시트 2: 척도·하위요인별 기술통계 (시트 1 변환점수 기준) */
+export function buildStatsTable(data: ExportData): (string | number)[][] {
+  const header = [
+    "척도",
+    "하위요인",
+    "N",
+    "리커트 척도",
+    "평균",
+    "표준편차",
+    "분산",
+    "중앙값",
+    "최빈값",
+    "왜도",
+    "첨도",
+  ];
   const rows: (string | number)[][] = [header];
-  for (const q of data.questions) {
-    rows.push([q.code, q.code, q.content, q.scaleName, q.subfactorName ?? "", q.isReverse ? "Y" : "N", q.min, q.max]);
+  for (const s of data.scales) {
+    const scaleStats = describeStats(data.rows.map((r) => r.scaleTotals[s.scaleVersionId]));
+    rows.push([
+      s.name,
+      "",
+      scaleStats.count,
+      s.maxScore,
+      statCell(scaleStats.mean),
+      statCell(scaleStats.standardDeviation),
+      statCell(scaleStats.variance),
+      statCell(scaleStats.median),
+      statCell(scaleStats.mode),
+      statCell(scaleStats.skewness),
+      statCell(scaleStats.kurtosis),
+    ]);
+    for (const sf of data.subfactors.filter((x) => x.scaleName === s.name)) {
+      const sfStats = describeStats(data.rows.map((r) => r.subfactorTotals[sf.id]));
+      rows.push([
+        s.name,
+        sf.name,
+        sfStats.count,
+        s.maxScore,
+        statCell(sfStats.mean),
+        statCell(sfStats.standardDeviation),
+        statCell(sfStats.variance),
+        statCell(sfStats.median),
+        statCell(sfStats.mode),
+        statCell(sfStats.skewness),
+        statCell(sfStats.kurtosis),
+      ]);
+    }
   }
   return rows;
+}
+
+/** 시트 3: 척도별 문항 목록 (문항 내용·이름 체크박스 대체) */
+export function buildQuestionsTable(data: ExportData): (string | number)[][] {
+  const header = ["척도명", "하위요인", "문항코드", "문항"];
+  const rows: (string | number)[][] = [header];
+  for (const q of data.questions) {
+    rows.push([q.scaleName, q.subfactorName ?? "", q.code, q.content]);
+  }
+  return rows;
+}
+
+export interface XlsxSheet {
+  name: string;
+  table: (string | number)[][];
+  merges?: HeaderMerge[];
+  freezeRows?: number;
+}
+
+/**
+ * XLSX 시트 분할 (이슈 #18).
+ * 1. 설문 결과 (변환점수)
+ * 2. 기술통계량
+ * 3. 문항
+ * 4. 원점수 (includeRaw 일 때만)
+ */
+export function buildXlsxSheets(data: ExportData, opts: ExportOptions): XlsxSheet[] {
+  const converted = buildWideTable(data, {
+    ...opts,
+    includeRaw: false,
+    includeConverted: true,
+    useQuestionContent: false,
+  });
+  const sheets: XlsxSheet[] = [
+    { name: "설문 결과", table: converted.table, merges: converted.merges, freezeRows: 3 },
+    { name: "기술통계량", table: buildStatsTable(data), freezeRows: 1 },
+    { name: "문항", table: buildQuestionsTable(data), freezeRows: 1 },
+  ];
+  if (opts.includeRaw) {
+    const raw = buildWideTable(data, {
+      ...opts,
+      includeRaw: true,
+      includeConverted: false,
+      useQuestionContent: false,
+    });
+    sheets.push({ name: "원점수", table: raw.table, merges: raw.merges, freezeRows: 3 });
+  }
+  return sheets;
 }
 
 function toCsv(table: (string | number)[][], useBom: boolean): Buffer {
@@ -348,45 +470,20 @@ async function toXlsx(data: ExportData, opts: ExportOptions): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Psychology Survey Platform";
 
-  const responses = wb.addWorksheet("Responses", {
-    views: [{ state: "frozen", ySplit: 3 }],
-  });
-  const wide = buildWideTable(data, opts);
-  wide.table.forEach((row) => responses.addRow(row));
-  for (const m of wide.merges) {
-    responses.mergeCells(m.row, m.start, m.row, m.end);
-  }
-  for (const rowNo of [1, 2, 3]) {
-    const row = responses.getRow(rowNo);
-    row.font = { bold: true };
-    row.alignment = { horizontal: "center", vertical: "middle" };
-  }
-
-  const answers = wb.addWorksheet("Answers");
-  buildLongTable(data, opts).forEach((row) => answers.addRow(row));
-
-  if (opts.includeScaleTotals) {
-    const sr = wb.addWorksheet("Scale Results");
-    sr.addRow(["respondent_id", ...data.scales.map((s) => s.name)]);
-    for (const r of data.rows) {
-      sr.addRow([r.respondentId, ...data.scales.map((s) => r.scaleTotals[s.scaleVersionId] ?? "")]);
+  for (const sheet of buildXlsxSheets(data, opts)) {
+    const ws = wb.addWorksheet(sheet.name, {
+      views: sheet.freezeRows ? [{ state: "frozen", ySplit: sheet.freezeRows }] : undefined,
+    });
+    sheet.table.forEach((row) => ws.addRow(row));
+    for (const m of sheet.merges ?? []) {
+      ws.mergeCells(m.row, m.start, m.row, m.end);
     }
-  }
-  if (opts.includeSubfactorScores) {
-    const sf = wb.addWorksheet("Subfactor Results");
-    sf.addRow(["respondent_id", ...data.subfactors.map((s) => s.name)]);
-    for (const r of data.rows) {
-      sf.addRow([r.respondentId, ...data.subfactors.map((s) => r.subfactorTotals[s.id] ?? "")]);
+    const headerRows = sheet.freezeRows ?? 1;
+    for (let rowNo = 1; rowNo <= headerRows; rowNo++) {
+      const row = ws.getRow(rowNo);
+      row.font = { bold: true };
+      row.alignment = { horizontal: "center", vertical: "middle" };
     }
-  }
-
-  const codebook = wb.addWorksheet("Codebook");
-  buildCodebook(data).forEach((row) => codebook.addRow(row));
-
-  // 헤더 굵게 (Responses 시트는 위에서 3행 헤더 처리)
-  for (const ws of wb.worksheets) {
-    if (ws.name === "Responses") continue;
-    ws.getRow(1).font = { bold: true };
   }
 
   const arrayBuffer = await wb.xlsx.writeBuffer();

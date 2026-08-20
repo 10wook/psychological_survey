@@ -20,6 +20,8 @@ export function ExportPanel({ surveyId, canPii }: { surveyId: string; canPii: bo
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const isXlsx = format === "xlsx";
+
   function toggle(key: keyof typeof opts) {
     setOpts((o) => ({ ...o, [key]: !o[key] }));
   }
@@ -53,7 +55,7 @@ export function ExportPanel({ surveyId, canPii }: { surveyId: string; canPii: bo
     }
   }
 
-  const checks: Array<[keyof typeof opts, string]> = [
+  const csvChecks: Array<[keyof typeof opts, string]> = [
     ["onlyCompleted", "완료 응답만"],
     ["includeRaw", "원점수"],
     ["includeConverted", "변환점수"],
@@ -64,6 +66,17 @@ export function ExportPanel({ surveyId, canPii }: { surveyId: string; canPii: bo
     ["useQuestionContent", "문항 내용 열 이름"],
   ];
 
+  // XLSX는 시트 분할 고정: 변환점수(시트1)·기술통계·문항 + 원점수 시트(옵션)
+  const xlsxChecks: Array<[keyof typeof opts, string]> = [
+    ["onlyCompleted", "완료 응답만"],
+    ["includeRaw", "원점수 시트 포함"],
+    ["includeScaleTotals", "척도 총점"],
+    ["includeSubfactorScores", "하위요인 점수"],
+    ["includePresentedOrder", "제시 순서"],
+  ];
+
+  const checks = isXlsx ? xlsxChecks : csvChecks;
+
   return (
     <Card className="space-y-3 p-4">
       <h2 className="text-sm font-semibold text-slate-900">데이터 내보내기</h2>
@@ -73,11 +86,19 @@ export function ExportPanel({ surveyId, canPii }: { surveyId: string; canPii: bo
           <option value="csv">CSV</option>
           <option value="xlsx">XLSX</option>
         </Select>
-        <Select value={layout} onChange={(e) => setLayout(e.target.value as "wide" | "long")} className="w-36">
-          <option value="wide">Wide (응답자당 1행)</option>
-          <option value="long">Long (응답당 1행)</option>
-        </Select>
+        {!isXlsx && (
+          <Select value={layout} onChange={(e) => setLayout(e.target.value as "wide" | "long")} className="w-36">
+            <option value="wide">Wide (응답자당 1행)</option>
+            <option value="long">Long (응답당 1행)</option>
+          </Select>
+        )}
       </div>
+      {isXlsx && (
+        <p className="text-xs text-slate-500">
+          시트: 설문 결과(변환점수) · 기술통계량 · 문항
+          {opts.includeRaw ? " · 원점수" : ""}
+        </p>
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {checks.map(([key, label]) => (
           <label key={key} className="flex items-center gap-1.5 text-sm text-slate-600">

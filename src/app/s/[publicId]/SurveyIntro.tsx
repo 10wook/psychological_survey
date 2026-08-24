@@ -372,7 +372,7 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
           {intro.scales.map((s) => (
             <li key={s.id}>
               {(s.intro && s.intro.length > 0 ? s.intro : [s.name]).map((line, i) => (
-                <span key={i} className={i === 0 ? "block" : "mt-0.5 block text-xs text-slate-400"}>
+                <span key={i} className={i === 0 ? "block whitespace-pre-line" : "mt-0.5 block whitespace-pre-line text-xs text-slate-400"}>
                   {i === 0 ? (
                     <>
                       {line} <span className="text-slate-400">({s.questionCount}문항)</span>

@@ -28,4 +28,14 @@ describe("scaleDisplay", () => {
     });
     expect(parts).toEqual([{ mode: "NAME", text: "GAD-7" }]);
   });
+
+  it("직접 입력(블라인드) 줄바꿈을 유지한다 (이슈 #21)", () => {
+    const parts = scaleDisplayParts(["CUSTOM"], {
+      name: "숨김",
+      displayLabel: "파트 A\n아래 문항에 답하세요.",
+    });
+    expect(parts).toEqual([
+      { mode: "CUSTOM", text: "파트 A\n아래 문항에 답하세요." },
+    ]);
+  });
 });

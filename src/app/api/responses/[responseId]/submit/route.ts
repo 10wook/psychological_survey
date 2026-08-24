@@ -13,6 +13,8 @@ type Params = { params: Promise<{ responseId: string }> };
 
 export const preferredRegion = "icn1";
 export const runtime = "nodejs";
+/** 채점 시 원격 DB 왕복이 있어 Hobby 기본 10초를 넘길 수 있다 (이슈 #22). */
+export const maxDuration = 60;
 
 // 설문 제출. 서버 재검증 → 채점(LIKERT만) → 결과 저장.
 export const POST = handler(async (_req: NextRequest, { params }: Params) => {
@@ -75,21 +77,19 @@ export const POST = handler(async (_req: NextRequest, { params }: Params) => {
     Math.round((now.getTime() - response.startedAt.getTime()) / 1000),
   );
 
-  await prisma.$transaction(
-    async (tx) => {
-      await scoreAndSaveResponse(tx, responseId);
-      await tx.surveyResponse.update({
-        where: { id: responseId },
-        data: {
-          status: "COMPLETED",
-          completedAt: now,
-          lastSavedAt: now,
-          durationSeconds,
-        },
-      });
+  // 긴 interactive transaction 은 Supabase 풀러에서 타임아웃/연결 끊김으로
+  // 제출만 실패하고 답변은 남는 '응답 중' 상태를 만든다 (이슈 #22).
+  // 채점은 delete+재생성으로 멱등이므로 완료 갱신과 분리해도 재시도 안전하다.
+  await scoreAndSaveResponse(prisma, responseId);
+  await prisma.surveyResponse.update({
+    where: { id: responseId },
+    data: {
+      status: "COMPLETED",
+      completedAt: now,
+      lastSavedAt: now,
+      durationSeconds,
     },
-    { maxWait: 15000, timeout: 30000 },
-  );
+  });
 
   return ok({ completed: true, showResult: survey.showResult });
 });

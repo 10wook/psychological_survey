@@ -343,9 +343,10 @@ export default function NewSurveyPage() {
                           </div>
                         </div>
                         {cfg.displayModes.includes("CUSTOM") && (
-                          <Input
+                          <Textarea
                             className="mt-2"
-                            placeholder="응답자에게 보일 이름 (예: 파트 A)"
+                            rows={3}
+                            placeholder="응답자에게 보일 안내 (줄바꿈 가능)"
                             value={cfg.displayLabel}
                             onChange={(e) => updateConfig(id, { displayLabel: e.target.value })}
                           />
@@ -362,8 +363,8 @@ export default function NewSurveyPage() {
                                 key={p.mode}
                                 className={
                                   p.mode === "NAME"
-                                    ? "text-sm font-medium text-slate-800"
-                                    : "text-xs text-slate-500"
+                                    ? "whitespace-pre-line text-sm font-medium text-slate-800"
+                                    : "whitespace-pre-line text-xs text-slate-500"
                                 }
                               >
                                 {p.text}

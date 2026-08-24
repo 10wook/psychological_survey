@@ -242,9 +242,9 @@ export function RespondForm({ responseId }: { responseId: string }) {
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-lg font-bold text-slate-900">{scaleTitle}</h1>
+              <h1 className="whitespace-pre-line text-lg font-bold text-slate-900">{scaleTitle}</h1>
               {scaleDescriptions.map((text, i) => (
-                <p key={i} className="mt-0.5 text-sm text-slate-600">
+                <p key={i} className="mt-0.5 whitespace-pre-line text-sm text-slate-600">
                   {text}
                 </p>
               ))}

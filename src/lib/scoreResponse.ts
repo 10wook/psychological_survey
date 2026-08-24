@@ -67,7 +67,7 @@ export async function scoreAndSaveResponse(tx: Tx, responseId: string): Promise<
       rawScores,
     });
 
-    // 문항별 변환점수 저장: 원격 DB 왕복을 줄이기 위해 동일 점수끼리 묶어 일괄 갱신
+    // 문항별 변환점수 저장: 동일 점수끼리 묶어 일괄 갱신
     const byConverted = new Map<number, string[]>();
     for (const qs of result.questionScores) {
       const arr = byConverted.get(qs.convertedScore) ?? [];

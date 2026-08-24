@@ -167,7 +167,10 @@ export const surveyScaleInputSchema = z
     /** @deprecated displayModes 사용. 하위 호환용 단일 값 */
     displayMode: scaleDisplayModeEnum.optional(),
     displayModes: z.array(scaleDisplayModeEnum).min(1).optional(),
-    displayLabel: z.string().max(200).nullish(),
+    displayLabel: z
+      .string()
+      .max(5000, "직접 입력 안내는 5000자 이하여야 합니다.")
+      .nullish(),
   })
   .transform((v) => {
     const modes =

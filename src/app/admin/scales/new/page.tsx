@@ -17,10 +17,6 @@ const SCALE_TYPE_LABEL: Record<ScaleType, string> = {
 
 const LIKERT_PLACEHOLDERS = ["전혀 아니다", "아니다", "보통이다", "그렇다", "매우 그렇다"];
 
-function usesLikertRange(t: ScaleType) {
-  return t === "LIKERT" || t === "MIXED";
-}
-
 export default function NewScalePage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -32,6 +28,7 @@ export default function NewScalePage() {
     minScore: "1",
     maxScore: "5",
   });
+  const [includeLikert, setIncludeLikert] = useState(false);
   const [likertLabels, setLikertLabels] = useState<string[]>(["", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +36,7 @@ export default function NewScalePage() {
   const min = Number(form.minScore) || 1;
   const max = Number(form.maxScore) || 5;
   const pointCount = Math.max(0, max - min + 1);
-  const showLikert = usesLikertRange(form.scaleType);
+  const showLikert = form.scaleType === "LIKERT" || (form.scaleType === "MIXED" && includeLikert);
 
   const labelSlots = useMemo(() => {
     return Array.from({ length: pointCount }, (_, i) => ({
@@ -54,6 +51,8 @@ export default function NewScalePage() {
 
   function setScaleType(scaleType: ScaleType) {
     setForm((f) => ({ ...f, scaleType }));
+    if (scaleType === "LIKERT") setIncludeLikert(true);
+    else if (scaleType !== "MIXED") setIncludeLikert(false);
   }
 
   function setMinMax(key: "minScore" | "maxScore", value: string) {
@@ -127,6 +126,22 @@ export default function NewScalePage() {
               ))}
             </Select>
           </Field>
+          {form.scaleType === "MIXED" && (
+            <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={includeLikert}
+                onChange={(e) => setIncludeLikert(e.target.checked)}
+              />
+              <span>
+                리커트 문항 포함
+                <span className="block text-xs text-slate-400">
+                  혼합 척도에 리커트 문항이 있을 때만 점수 범위를 설정합니다.
+                </span>
+              </span>
+            </label>
+          )}
           <Field label="설명" htmlFor="description">
             <Textarea id="description" rows={3} value={form.description}
               onChange={(e) => update("description", e.target.value)} />

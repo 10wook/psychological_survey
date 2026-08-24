@@ -37,12 +37,15 @@ export function fail(error: unknown) {
     );
   }
   if (error instanceof ZodError) {
+    const first = error.issues[0];
+    const custom = first?.message;
+    const generic = !custom || custom === "Required" || custom.startsWith("Invalid");
     return NextResponse.json(
       {
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: "입력값이 올바르지 않습니다.",
+          message: generic ? "입력값이 올바르지 않습니다." : custom,
           details: error.flatten(),
         },
       },

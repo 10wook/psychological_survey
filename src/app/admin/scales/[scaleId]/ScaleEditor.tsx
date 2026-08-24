@@ -23,10 +23,6 @@ const SCALE_TYPE_LABEL: Record<ScaleType, string> = {
   MIXED: "혼합",
 };
 
-function usesLikertRange(t: ScaleType) {
-  return t === "LIKERT" || t === "MIXED";
-}
-
 function asLabelArray(raw: unknown, count: number): string[] {
   const src = Array.isArray(raw) ? raw.map((v) => (typeof v === "string" ? v : "")) : [];
   return Array.from({ length: count }, (_, i) => src[i] ?? "");
@@ -35,6 +31,14 @@ function asLabelArray(raw: unknown, count: number): string[] {
 function defaultQuestionType(scaleType: ScaleType): QuestionType {
   if (scaleType === "MIXED" || scaleType === "LIKERT") return "LIKERT";
   return scaleType;
+}
+
+function hasLikertRangeHint(version: ScaleVersionDTO): boolean {
+  if (version.scaleType === "LIKERT") return true;
+  if (version.scaleType !== "MIXED") return false;
+  if (version.questions.some((q) => q.type === "LIKERT")) return true;
+  const labels = Array.isArray(version.likertLabels) ? version.likertLabels : [];
+  return labels.some((l) => typeof l === "string" && l.trim().length > 0);
 }
 
 export function ScaleEditor({ scaleId }: { scaleId: string }) {
@@ -354,6 +358,7 @@ function VersionSettings({
   const [labels, setLabels] = useState<string[]>(() =>
     asLabelArray(version.likertLabels, version.maxScore - version.minScore + 1),
   );
+  const [includeLikert, setIncludeLikert] = useState(() => hasLikertRangeHint(version));
   const [requiredByDefault, setRequired] = useState(version.requiredByDefault);
   const [shuffleQuestions, setShuffle] = useState(version.shuffleQuestions);
   const [saving, setSaving] = useState(false);
@@ -363,6 +368,7 @@ function VersionSettings({
     setMin(String(version.minScore));
     setMax(String(version.maxScore));
     setLabels(asLabelArray(version.likertLabels, version.maxScore - version.minScore + 1));
+    setIncludeLikert(hasLikertRangeHint(version));
     setRequired(version.requiredByDefault);
     setShuffle(version.shuffleQuestions);
   }, [version]);
@@ -370,7 +376,13 @@ function VersionSettings({
   const min = Number(minScore) || 1;
   const max = Number(maxScore) || 5;
   const pointCount = Math.max(0, max - min + 1);
-  const showLikert = usesLikertRange(scaleType);
+  const showLikert = scaleType === "LIKERT" || (scaleType === "MIXED" && includeLikert);
+
+  function changeScaleType(next: ScaleType) {
+    setScaleType(next);
+    if (next === "LIKERT") setIncludeLikert(true);
+    else if (next !== "MIXED") setIncludeLikert(false);
+  }
 
   function resizeLabels(nextMin: number, nextMax: number) {
     const count = Math.max(0, nextMax - nextMin + 1);
@@ -412,13 +424,31 @@ function VersionSettings({
           id="scaleType"
           value={scaleType}
           disabled={!editable}
-          onChange={(e) => setScaleType(e.target.value as ScaleType)}
+          onChange={(e) => changeScaleType(e.target.value as ScaleType)}
         >
           {(Object.keys(SCALE_TYPE_LABEL) as ScaleType[]).map((k) => (
             <option key={k} value={k}>{SCALE_TYPE_LABEL[k]}</option>
           ))}
         </Select>
       </Field>
+
+      {scaleType === "MIXED" && (
+        <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={includeLikert}
+            disabled={!editable}
+            onChange={(e) => setIncludeLikert(e.target.checked)}
+          />
+          <span>
+            리커트 문항 포함
+            <span className="block text-xs text-slate-400">
+              체크하면 리커트 점수 범위를 설정할 수 있습니다.
+            </span>
+          </span>
+        </label>
+      )}
 
       {showLikert && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">

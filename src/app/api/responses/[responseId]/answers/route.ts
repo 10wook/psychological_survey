@@ -7,7 +7,12 @@ import { normalizeAndValidateAnswer } from "@/lib/answerValidation";
 
 type Params = { params: Promise<{ responseId: string }> };
 
-// 자동 저장. upsert + 멱등. 유형별 검증.
+export const preferredRegion = "icn1";
+export const runtime = "nodejs";
+/** 제출 직전 전체 답변 저장은 원격 DB 왕복이 있어 Hobby 기본 10초를 넘길 수 있다 (이슈 #24). */
+export const maxDuration = 60;
+
+// 자동 저장. 삭제 후 일괄 생성 + 멱등. 유형별 검증.
 export const PUT = handler(async (req: NextRequest, { params }: Params) => {
   const { responseId } = await params;
 

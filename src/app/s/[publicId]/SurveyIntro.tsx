@@ -352,7 +352,9 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
     <Card className="space-y-5 p-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{intro.title}</h1>
-        {intro.description && <p className="mt-1 text-slate-600">{intro.description}</p>}
+        {intro.description && (
+          <p className="mt-1 whitespace-pre-line text-slate-600">{intro.description}</p>
+        )}
       </div>
 
       <div className="flex gap-4 text-sm text-slate-600">

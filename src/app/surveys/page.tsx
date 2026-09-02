@@ -47,12 +47,12 @@ export default async function MySurveysPage() {
             <EmptyState title="참여 가능한 새 설문이 없습니다." />
           ) : (
             available.map((s) => (
-              <Card key={s.id} className="flex items-center justify-between p-4">
-                <div>
+              <Card key={s.id} className="flex items-center justify-between gap-4 p-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-slate-900">{s.title}</p>
-                  <p className="text-xs text-slate-500">{s.description}</p>
+                  <p className="whitespace-pre-line text-xs text-slate-500">{s.description}</p>
                 </div>
-                <LinkButton href={`/s/${s.publicId}`} size="sm">
+                <LinkButton href={`/s/${s.publicId}`} size="sm" className="shrink-0">
                   참여하기
                 </LinkButton>
               </Card>
@@ -66,14 +66,14 @@ export default async function MySurveysPage() {
             <EmptyState title="작성 중인 설문이 없습니다." />
           ) : (
             inProgress.map((r) => (
-              <Card key={r.id} className="flex items-center justify-between p-4">
-                <div>
+              <Card key={r.id} className="flex items-center justify-between gap-4 p-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-slate-900">{r.survey.title}</p>
                   <p className="text-xs text-slate-500">
                     마지막 저장 {r.lastSavedAt.toLocaleString("ko-KR")}
                   </p>
                 </div>
-                <LinkButton href={`/respond/${r.id}`} size="sm">
+                <LinkButton href={`/respond/${r.id}`} size="sm" className="shrink-0">
                   이어서 응답
                 </LinkButton>
               </Card>
@@ -87,8 +87,8 @@ export default async function MySurveysPage() {
             <EmptyState title="완료한 설문이 없습니다." />
           ) : (
             completed.map((r) => (
-              <Card key={r.id} className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-2">
+              <Card key={r.id} className="flex items-center justify-between gap-4 p-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <p className="font-medium text-slate-900">{r.survey.title}</p>
                   <Badge value={r.status} />
                 </div>

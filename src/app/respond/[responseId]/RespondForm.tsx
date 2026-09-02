@@ -194,6 +194,8 @@ export function RespondForm({ responseId }: { responseId: string }) {
   async function submit() {
     setSubmitting(true);
     setError(null);
+    // 대기 중인 자동저장이 전체 저장과 동시에 실행되지 않도록 취소 (이슈 #24)
+    if (timerRef.current) clearTimeout(timerRef.current);
     const fullPayload = Object.entries(answers).map(([questionId, val]) =>
       toPayload(questionId, val),
     );

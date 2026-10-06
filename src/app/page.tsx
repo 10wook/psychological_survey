@@ -3,7 +3,6 @@ import { LinkButton } from "@/components/ui";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const isStaff = user && (user.role === "ADMIN" || user.role === "RESEARCHER");
 
   return (
     <div className="min-h-screen">
@@ -20,15 +19,13 @@ export default async function HomePage() {
             {user ? (
               <>
                 <LinkButton href="/surveys">내 설문 보기</LinkButton>
-                {isStaff && (
-                  <LinkButton href="/admin" variant="secondary">
-                    관리자 콘솔
-                  </LinkButton>
-                )}
+                <LinkButton href="/admin" variant="secondary">
+                  설문자 콘솔
+                </LinkButton>
               </>
             ) : (
               <>
-                <LinkButton href="/register">응답자로 시작하기</LinkButton>
+                <LinkButton href="/register">시작하기</LinkButton>
                 <LinkButton href="/login" variant="secondary">
                   로그인
                 </LinkButton>

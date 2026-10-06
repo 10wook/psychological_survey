@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
 import { badRequest, forbidden, handler, ok } from "@/lib/http";
 import { updateSurveySchema } from "@/lib/validation";
+import { writeAudit, getClientIp } from "@/lib/audit";
 import {
   assertOwnsSurvey,
   assertReadableScaleVersionForSurvey,
@@ -32,6 +33,34 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
     },
   });
   return ok({ survey });
+});
+
+// 완전 삭제 (이슈 #30): 종료/잠금/보관 상태의 설문만. 응답·채점 결과도 함께 삭제된다.
+export const DELETE = handler(async (req: NextRequest, { params }: Params) => {
+  const user = await requireStaff();
+  const { surveyId } = await params;
+  await assertOwnsSurvey(user, surveyId);
+
+  const survey = await prisma.survey.findUniqueOrThrow({
+    where: { id: surveyId },
+    select: { id: true, title: true, status: true, _count: { select: { responses: true } } },
+  });
+  if (survey.status !== "CLOSED" && survey.status !== "LOCKED" && survey.status !== "ARCHIVED") {
+    throw badRequest("진행 중인 설문은 완전 삭제할 수 없습니다. 먼저 종료하거나 삭제(보관)하세요.");
+  }
+
+  await prisma.survey.delete({ where: { id: surveyId } });
+
+  await writeAudit({
+    actorUserId: user.id,
+    entityType: "Survey",
+    entityId: surveyId,
+    action: "SURVEY_HARD_DELETED",
+    before: { title: survey.title, status: survey.status, responses: survey._count.responses },
+    ipAddress: getClientIp(req),
+  });
+
+  return ok({ deleted: true });
 });
 
 export const PATCH = handler(async (req: NextRequest, { params }: Params) => {

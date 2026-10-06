@@ -25,10 +25,8 @@ export function LoginForm() {
       setError(res.error.message);
       return;
     }
-    // 역할 기반 이동: 관리자/연구자는 관리자 콘솔로 바로 이동
-    const isStaff = res.data.role === "ADMIN" || res.data.role === "RESEARCHER";
-    const target = nextParam ?? (isStaff ? "/admin" : "/surveys");
-    router.push(target);
+    // 계정 구분 없이 응답자 페이지로 이동. 설문자 콘솔은 우측 상단 버튼으로 (이슈 #31)
+    router.push(nextParam ?? "/surveys");
     router.refresh();
   }
 

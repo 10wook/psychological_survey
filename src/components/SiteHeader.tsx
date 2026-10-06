@@ -5,7 +5,6 @@ import { LinkButton } from "@/components/ui";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
-  const isStaff = user && (user.role === "ADMIN" || user.role === "RESEARCHER");
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -19,12 +18,11 @@ export async function SiteHeader() {
               <Link href="/surveys" className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">
                 내 설문
               </Link>
-              {isStaff && (
-                <Link href="/admin" className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">
-                  관리자
-                </Link>
-              )}
               <span className="hidden text-xs text-slate-400 sm:inline">{user.email}</span>
+              {/* 응답자/설문자 구분 없이 회원이면 설문자 콘솔 접근 가능 (이슈 #31) */}
+              <LinkButton href="/admin" variant="secondary" size="sm">
+                설문자 콘솔
+              </LinkButton>
               <LogoutButton />
             </>
           ) : (

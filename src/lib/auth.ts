@@ -112,15 +112,20 @@ const ROLE_RANK: Record<UserRole, number> = {
   ADMIN: 2,
 };
 
-/** 최소 권한 검증. RESEARCHER 이상 = 관리자 콘솔 접근 */
+/** 최소 권한 검증 */
 export async function requireRole(min: UserRole): Promise<SafeUser> {
   const user = await requireUser();
   if (ROLE_RANK[user.role] < ROLE_RANK[min]) throw forbidden();
   return user;
 }
 
+/**
+ * 설문자 콘솔 접근 권한 (이슈 #31).
+ * 응답자/설문자 계정을 구분하지 않으므로 로그인한 모든 회원이 접근 가능하다.
+ * 데이터 접근 범위는 ownership(본인 생성분)으로 제한된다.
+ */
 export async function requireStaff(): Promise<SafeUser> {
-  return requireRole("RESEARCHER");
+  return requireUser();
 }
 
 export async function requireAdmin(): Promise<SafeUser> {

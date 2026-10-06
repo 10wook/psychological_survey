@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { ownedScaleWhere } from "@/lib/ownership";
 import { Badge, Card, EmptyState, LinkButton, cn } from "@/components/ui";
+import { HardDeleteButton } from "@/components/HardDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function ScalesPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
+  if (!user) redirect("/login?next=/admin");
   const sp = await searchParams;
   const tab = tabOf(sp);
 
@@ -131,6 +132,16 @@ export default async function ScalesPage({
                     </LinkButton>
                   </div>
                 </div>
+                {/* 비활성화 탭에서만 완전 삭제 허용 (이슈 #30) */}
+                {tab === "inactive" && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <HardDeleteButton
+                      url={`/api/admin/scales/${s.id}`}
+                      targetName={s.name}
+                      warning="척도의 모든 버전·문항·하위요인이 함께 삭제됩니다."
+                    />
+                  </div>
+                )}
               </Card>
             );
           })}

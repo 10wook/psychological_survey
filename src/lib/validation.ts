@@ -10,6 +10,16 @@ export const genderSelectableEnum = z.enum(["MALE", "FEMALE", "OTHER"], {
 
 const currentYear = new Date().getFullYear();
 
+/** 해당 년·월에 실제 존재하는 날짜인지 (이슈 #32: 2월 31일 등 방지) */
+function isValidBirthdate(v: { birthYear: number; birthMonth: number; birthDay: number }): boolean {
+  return v.birthDay <= new Date(v.birthYear, v.birthMonth, 0).getDate();
+}
+
+const invalidBirthdateMessage = {
+  message: "존재하지 않는 날짜입니다. 생년월일을 다시 확인하세요.",
+  path: ["birthDay"],
+};
+
 /** 회원가입: 이메일·연락처 수집 목적별 동의 (필수) */
 const registerPiiContactConsents = {
   consentResultDelivery: z.literal(true, {
@@ -48,7 +58,8 @@ export const registerSchema = z
   .refine((d) => d.password === d.passwordConfirm, {
     message: "비밀번호가 일치하지 않습니다.",
     path: ["passwordConfirm"],
-  });
+  })
+  .refine(isValidBirthdate, invalidBirthdateMessage);
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -251,15 +262,16 @@ export const guestStartSchema = z.object({
   birthMonth: z.number().int().min(1).max(12),
   birthDay: z.number().int().min(1).max(31),
   gender: genderSelectableEnum,
-});
+}).refine(isValidBirthdate, invalidBirthdateMessage);
 
 // --- 내보내기 ----------------------------------------------------------
+// 이슈 #28: 완료 응답만·변환점수·개인정보 포함(권한 시)·wide 가 기본값.
 export const exportOptionsSchema = z.object({
   format: z.enum(["csv", "xlsx"]).default("csv"),
   layout: z.enum(["wide", "long"]).default("wide"),
   includePii: z.boolean().default(false),
   onlyCompleted: z.boolean().default(true),
-  includeRaw: z.boolean().default(true),
+  includeRaw: z.boolean().default(false),
   includeConverted: z.boolean().default(true),
   includeScaleTotals: z.boolean().default(true),
   includeSubfactorScores: z.boolean().default(true),

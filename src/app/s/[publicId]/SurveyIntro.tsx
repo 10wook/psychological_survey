@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { BirthdateFields } from "@/components/BirthdateFields";
 
 type GuestContactMode = "NONE" | "OPTIONAL" | "REQUIRED";
 
@@ -23,7 +24,6 @@ interface Intro {
 
 type Step = "intro" | "choose" | "guest-form";
 
-const CURRENT_YEAR = new Date().getFullYear();
 const GUEST_HINT = "회원가입해두면 매번 귀찮게 입력할 필요가 없어요!";
 
 const emptyGuest = {
@@ -211,44 +211,11 @@ export function SurveyIntro({ publicId }: { publicId: string }) {
               required
             />
           </Field>
-          <div className="grid grid-cols-3 gap-2">
-            <Field label="출생년" htmlFor="g-by" required>
-              <Input
-                id="g-by"
-                type="number"
-                min={1900}
-                max={CURRENT_YEAR}
-                placeholder="1998"
-                value={guest.birthYear}
-                onChange={(e) => setGuest((g) => ({ ...g, birthYear: e.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="월" htmlFor="g-bm" required>
-              <Input
-                id="g-bm"
-                type="number"
-                min={1}
-                max={12}
-                placeholder="1"
-                value={guest.birthMonth}
-                onChange={(e) => setGuest((g) => ({ ...g, birthMonth: e.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="일" htmlFor="g-bd" required>
-              <Input
-                id="g-bd"
-                type="number"
-                min={1}
-                max={31}
-                placeholder="1"
-                value={guest.birthDay}
-                onChange={(e) => setGuest((g) => ({ ...g, birthDay: e.target.value }))}
-                required
-              />
-            </Field>
-          </div>
+          <BirthdateFields
+            idPrefix="g-birth"
+            value={{ birthYear: guest.birthYear, birthMonth: guest.birthMonth, birthDay: guest.birthDay }}
+            onChange={(patch) => setGuest((g) => ({ ...g, ...patch }))}
+          />
           <Field label="성별" htmlFor="g-gender" required>
             <Select
               id="g-gender"

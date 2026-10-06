@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { ownedSurveyWhere } from "@/lib/ownership";
 import { Badge, Card, EmptyState, LinkButton, cn } from "@/components/ui";
+import { HardDeleteButton } from "@/components/HardDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function SurveysPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
+  if (!user) redirect("/login?next=/admin");
   const sp = await searchParams;
   const tab = tabOf(sp);
 
@@ -91,24 +92,36 @@ export default async function SurveysPage({
       ) : (
         <div className="grid gap-3">
           {filtered.map((s) => (
-            <Card key={s.id} className="flex items-center justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <Link
-                  href={`/admin/surveys/${s.id}`}
-                  className="font-medium text-slate-900 hover:text-brand-600"
-                >
-                  {s.title}
-                </Link>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  척도 {s._count.surveyScales}개 · 응답 {s._count.responses}건
-                </p>
+            <Card key={s.id} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Link
+                    href={`/admin/surveys/${s.id}`}
+                    className="font-medium text-slate-900 hover:text-brand-600"
+                  >
+                    {s.title}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    척도 {s._count.surveyScales}개 · 응답 {s._count.responses}건
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge value={s.status} />
+                  <LinkButton href={`/admin/surveys/${s.id}`} variant="secondary" size="sm">
+                    관리
+                  </LinkButton>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge value={s.status} />
-                <LinkButton href={`/admin/surveys/${s.id}`} variant="secondary" size="sm">
-                  관리
-                </LinkButton>
-              </div>
+              {/* 종료 탭에서만 완전 삭제 허용 (이슈 #30) */}
+              {tab === "ended" && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <HardDeleteButton
+                    url={`/api/admin/surveys/${s.id}`}
+                    targetName={s.title}
+                    warning={`응답 ${s._count.responses}건과 채점 결과가 함께 삭제됩니다.`}
+                  />
+                </div>
+              )}
             </Card>
           ))}
         </div>

@@ -238,6 +238,20 @@ export function RespondForm({ responseId }: { responseId: string }) {
   const scaleTitle = parts[0]?.text ?? scale.scaleName ?? "설문 문항";
   const scaleDescriptions = parts.slice(1).map((p) => p.text);
 
+  // 리커트 응답 기준 범례 (이슈 #29): 현재 척도의 LIKERT 선택지에서 번호별 정의 수집.
+  // 라벨이 전부 숫자뿐이면 범례를 생략한다.
+  const likertLegend = (() => {
+    const map = new Map<number, string>();
+    for (const q of scale.questions) {
+      if (q.type !== "LIKERT") continue;
+      for (const o of q.options) {
+        if (!map.has(o.value)) map.set(o.value, o.label);
+      }
+    }
+    const entries = [...map.entries()].sort((a, b) => a[0] - b[0]);
+    return entries.some(([v, l]) => l !== String(v)) ? entries : [];
+  })();
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
@@ -267,6 +281,21 @@ export function RespondForm({ responseId }: { responseId: string }) {
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-6">
         {error && <Alert variant="error">{error}</Alert>}
 
+        {/* 번호별 정의 안내 (이슈 #29): 문항을 가로로 제시하므로 상단에 기준을 먼저 보여준다 */}
+        {likertLegend.length > 0 && (
+          <Card className="p-4">
+            <p className="text-xs font-semibold text-slate-500">응답 기준</p>
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+              {likertLegend.map(([value, label]) => (
+                <li key={value}>
+                  <span className="font-semibold text-brand-600">{value}</span>
+                  <span className="text-slate-400">:</span> {label}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {scale.questions.map((q, idx) => {
           const a = answers[q.id] ?? {};
           const unanswered = q.isRequired && !isAnswered(q, a);
@@ -293,7 +322,47 @@ export function RespondForm({ responseId }: { responseId: string }) {
                 />
               )}
 
-              {(q.type === "LIKERT" || q.type === "SINGLE") && (
+              {/* 리커트: 가로 제시 — 선택지(O) 아래 숫자 cue (이슈 #29) */}
+              {q.type === "LIKERT" && (
+                <div
+                  className="flex items-stretch justify-between gap-1 sm:gap-2"
+                  role="radiogroup"
+                  aria-label={q.content}
+                >
+                  {q.options.map((o) => {
+                    const checked = a.rawScore === o.value;
+                    return (
+                      <label
+                        key={o.value}
+                        title={o.label}
+                        className={`flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1.5 rounded-lg border px-1 py-2.5 ${
+                          checked ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={q.id}
+                          className="h-5 w-5 accent-brand-600"
+                          aria-label={o.label}
+                          checked={checked}
+                          onChange={() =>
+                            updateAnswer(q.id, { rawScore: o.value, textValue: null, selectedValues: [] })
+                          }
+                        />
+                        <span
+                          className={`whitespace-nowrap text-xs tabular-nums ${
+                            checked ? "font-semibold text-brand-700" : "text-slate-500"
+                          }`}
+                        >
+                          {o.value}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {q.type === "SINGLE" && (
                 <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.content}>
                   {q.options.map((o) => {
                     const checked = a.rawScore === o.value;

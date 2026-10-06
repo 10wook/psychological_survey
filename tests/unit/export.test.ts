@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildWideTable, buildXlsxSheets, buildStatsTable, buildQuestionsTable, type ExportData } from "@/lib/export";
+import {
+  buildWideTable,
+  buildXlsxSheets,
+  buildStatsTable,
+  buildQuestionsTable,
+  buildScaleTotalsTable,
+  buildSubfactorScoresTable,
+  type ExportData,
+} from "@/lib/export";
 import { exportOptionsSchema } from "@/lib/validation";
 
 // 이슈 #12: Wide 표 3행 헤더 (Profile/척도명 → 하위요인 → ID·Age·Gender·문항코드)
@@ -83,6 +91,7 @@ const data: ExportData = {
 
 describe("buildWideTable (이슈 #12 3행 헤더)", () => {
   const opts = exportOptionsSchema.parse({
+    includeRaw: true,
     includeConverted: false,
     includeScaleTotals: false,
     includeSubfactorScores: false,
@@ -116,7 +125,7 @@ describe("buildWideTable (이슈 #12 3행 헤더)", () => {
   });
 
   it("총점·하위요인 점수 열은 그룹 헤더 아래에 배치", () => {
-    const full = exportOptionsSchema.parse({ includeConverted: false });
+    const full = exportOptionsSchema.parse({ includeRaw: true, includeConverted: false });
     const { table } = buildWideTable(data, full);
     expect(table[0]).toContain("척도 총점");
     expect(table[0]).toContain("하위요인 점수");
@@ -129,6 +138,7 @@ describe("buildWideTable (이슈 #12 3행 헤더)", () => {
     const piiOpts = exportOptionsSchema.parse({
       includePii: true,
       onlyCompleted: false,
+      includeRaw: true,
       includeConverted: false,
       includeScaleTotals: false,
       includeSubfactorScores: false,
@@ -139,40 +149,49 @@ describe("buildWideTable (이슈 #12 3행 헤더)", () => {
   });
 });
 
-describe("XLSX 시트 분할 (이슈 #18)", () => {
-  const withRaw = exportOptionsSchema.parse({ format: "xlsx", includeRaw: true });
-  const withoutRaw = exportOptionsSchema.parse({ format: "xlsx", includeRaw: false });
+describe("XLSX 시트 분할 (이슈 #18 / #28)", () => {
+  const defaults = exportOptionsSchema.parse({ format: "xlsx" });
+  const withoutTotals = exportOptionsSchema.parse({
+    format: "xlsx",
+    includeScaleTotals: false,
+    includeSubfactorScores: false,
+  });
 
-  it("기본 3시트: 설문 결과 · 기술통계량 · 문항", () => {
-    const sheets = buildXlsxSheets(data, withoutRaw);
+  it("기본 5시트: 설문 결과 · 척도 총점 · 하위요인 점수 · 기술통계량 · 문항", () => {
+    const sheets = buildXlsxSheets(data, defaults);
+    expect(sheets.map((s) => s.name)).toEqual([
+      "설문 결과",
+      "척도 총점",
+      "하위요인 점수",
+      "기술통계량",
+      "문항",
+    ]);
+  });
+
+  it("총점·하위요인 미체크 시 해당 시트 생략", () => {
+    const sheets = buildXlsxSheets(data, withoutTotals);
     expect(sheets.map((s) => s.name)).toEqual(["설문 결과", "기술통계량", "문항"]);
   });
 
-  it("원점수 체크 시에만 4번째 시트 생성", () => {
-    const sheets = buildXlsxSheets(data, withRaw);
-    expect(sheets.map((s) => s.name)).toEqual(["설문 결과", "기술통계량", "문항", "원점수"]);
-  });
-
-  it("설문 결과 시트는 변환점수만 담고 _conv 접미사를 쓰지 않는다", () => {
-    const result = buildXlsxSheets(data, withRaw).find((s) => s.name === "설문 결과")!;
-    expect(result.table[2]).toEqual([
-      "ID",
-      "Age",
-      "Gender",
-      "SCS1",
-      "SCS2",
-      "SCS3",
-      "total_자기자비",
-      "sub_자기친절",
-      "sub_보편성",
-    ]);
+  it("설문 결과 시트는 변환점수 문항 응답만 담는다 (총점 열 분리, 이슈 #28)", () => {
+    const result = buildXlsxSheets(data, defaults).find((s) => s.name === "설문 결과")!;
+    expect(result.table[2]).toEqual(["ID", "Age", "Gender", "SCS1", "SCS2", "SCS3"]);
     expect(result.table[2]?.some((c) => String(c).endsWith("_conv"))).toBe(false);
-    expect(result.table[3]).toEqual(["P0001", 24, "여", 3, 4, 4, 11, 7, 4]);
+    expect(result.table[3]).toEqual(["P0001", 24, "여", 3, 4, 4]);
   });
 
-  it("원점수 시트는 역채점 전 점수와 원점수 총점을 담는다", () => {
-    const raw = buildXlsxSheets(data, withRaw).find((s) => s.name === "원점수")!;
-    expect(raw.table[3]).toEqual(["P0001", 24, "여", 3, 4, 2, 9, 7, 2]);
+  it("척도 총점 시트: ID + 척도별 변환 총점", () => {
+    const table = buildScaleTotalsTable(data);
+    expect(table[0]).toEqual(["ID", "total_자기자비"]);
+    expect(table[1]).toEqual(["P0001", 11]);
+    expect(table[2]).toEqual(["P0002", 15]);
+  });
+
+  it("하위요인 점수 시트: ID + 척도명_하위요인별 점수", () => {
+    const table = buildSubfactorScoresTable(data);
+    expect(table[0]).toEqual(["ID", "자기자비_자기친절", "자기자비_보편성"]);
+    expect(table[1]).toEqual(["P0001", 7, 4]);
+    expect(table[2]).toEqual(["P0002", 10, 5]);
   });
 
   it("기술통계량 시트: 척도·하위요인 행과 N·리커트·평균 등 열", () => {

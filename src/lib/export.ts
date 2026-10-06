@@ -417,6 +417,26 @@ export function buildQuestionsTable(data: ExportData): (string | number)[][] {
   return rows;
 }
 
+/** 척도 총점 독립 시트 (이슈 #28): ID + 척도별 변환점수 총점 */
+export function buildScaleTotalsTable(data: ExportData): (string | number)[][] {
+  const header = ["ID", ...data.scales.map((s) => `total_${s.name}`)];
+  const rows: (string | number)[][] = [header];
+  for (const r of data.rows) {
+    rows.push([r.respondentId, ...data.scales.map((s) => r.scaleTotals[s.scaleVersionId] ?? "")]);
+  }
+  return rows;
+}
+
+/** 하위요인 점수 독립 시트 (이슈 #28): ID + 하위요인별 변환점수 합 */
+export function buildSubfactorScoresTable(data: ExportData): (string | number)[][] {
+  const header = ["ID", ...data.subfactors.map((sf) => `${sf.scaleName}_${sf.name}`)];
+  const rows: (string | number)[][] = [header];
+  for (const r of data.rows) {
+    rows.push([r.respondentId, ...data.subfactors.map((sf) => r.subfactorTotals[sf.id] ?? "")]);
+  }
+  return rows;
+}
+
 export interface XlsxSheet {
   name: string;
   table: (string | number)[][];
@@ -425,33 +445,36 @@ export interface XlsxSheet {
 }
 
 /**
- * XLSX 시트 분할 (이슈 #18).
- * 1. 설문 결과 (변환점수)
- * 2. 기술통계량
- * 3. 문항
- * 4. 원점수 (includeRaw 일 때만)
+ * XLSX 시트 분할 (이슈 #18 / #28).
+ * 1. 설문 결과 (변환점수, 문항 응답만)
+ * 2. 척도 총점 (includeScaleTotals 일 때, 독립 시트)
+ * 3. 하위요인 점수 (includeSubfactorScores 일 때, 독립 시트)
+ * 4. 기술통계량
+ * 5. 문항
  */
 export function buildXlsxSheets(data: ExportData, opts: ExportOptions): XlsxSheet[] {
+  // 총점·하위요인 점수는 응답 뒤에 열로 붙이지 않고 독립 시트로 분리한다 (이슈 #28)
   const converted = buildWideTable(data, {
     ...opts,
     includeRaw: false,
     includeConverted: true,
+    includeScaleTotals: false,
+    includeSubfactorScores: false,
     useQuestionContent: false,
   });
   const sheets: XlsxSheet[] = [
     { name: "설문 결과", table: converted.table, merges: converted.merges, freezeRows: 3 },
+  ];
+  if (opts.includeScaleTotals) {
+    sheets.push({ name: "척도 총점", table: buildScaleTotalsTable(data), freezeRows: 1 });
+  }
+  if (opts.includeSubfactorScores) {
+    sheets.push({ name: "하위요인 점수", table: buildSubfactorScoresTable(data), freezeRows: 1 });
+  }
+  sheets.push(
     { name: "기술통계량", table: buildStatsTable(data), freezeRows: 1 },
     { name: "문항", table: buildQuestionsTable(data), freezeRows: 1 },
-  ];
-  if (opts.includeRaw) {
-    const raw = buildWideTable(data, {
-      ...opts,
-      includeRaw: true,
-      includeConverted: false,
-      useQuestionContent: false,
-    });
-    sheets.push({ name: "원점수", table: raw.table, merges: raw.merges, freezeRows: 3 });
-  }
+  );
   return sheets;
 }
 

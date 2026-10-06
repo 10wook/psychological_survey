@@ -6,8 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { api } from "@/lib/client";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
-
-const CURRENT_YEAR = new Date().getFullYear();
+import { BirthdateFields } from "@/components/BirthdateFields";
 
 function RegisterForm() {
   const router = useRouter();
@@ -91,7 +90,9 @@ function RegisterForm() {
   return (
     <Card className="w-full max-w-md p-8">
       <h1 className="text-xl font-bold text-slate-900">회원가입</h1>
-      <p className="mt-1 text-sm text-slate-500">응답자 계정을 생성합니다.</p>
+      <p className="mt-1 text-sm text-slate-500">
+        계정 하나로 설문 응답과 설문 제작(설문자 콘솔)을 모두 이용할 수 있습니다.
+      </p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {error && <Alert variant="error">{error}</Alert>}
 
@@ -131,20 +132,11 @@ function RegisterForm() {
             value={form.passwordConfirm}
             onChange={(e) => update("passwordConfirm", e.target.value)} required />
         </Field>
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="출생년" htmlFor="birthYear" required>
-            <Input id="birthYear" type="number" min={1900} max={CURRENT_YEAR} placeholder="1998"
-              value={form.birthYear} onChange={(e) => update("birthYear", e.target.value)} required />
-          </Field>
-          <Field label="월" htmlFor="birthMonth" required>
-            <Input id="birthMonth" type="number" min={1} max={12} placeholder="1"
-              value={form.birthMonth} onChange={(e) => update("birthMonth", e.target.value)} required />
-          </Field>
-          <Field label="일" htmlFor="birthDay" required>
-            <Input id="birthDay" type="number" min={1} max={31} placeholder="1"
-              value={form.birthDay} onChange={(e) => update("birthDay", e.target.value)} required />
-          </Field>
-        </div>
+        <BirthdateFields
+          idPrefix="birth"
+          value={{ birthYear: form.birthYear, birthMonth: form.birthMonth, birthDay: form.birthDay }}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        />
         <Field label="성별" htmlFor="gender" required>
           <Select id="gender" value={form.gender} onChange={(e) => update("gender", e.target.value)} required>
             <option value="" disabled>선택하세요</option>

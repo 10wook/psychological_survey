@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "ADMIN" && user.role !== "RESEARCHER")) redirect("/login?next=/admin");
+  if (!user) redirect("/login?next=/admin");
   const surveyWhere = ownedSurveyWhere(user);
 
   const [surveyCount, activeSurveys, completedResponses, recentResponses] =

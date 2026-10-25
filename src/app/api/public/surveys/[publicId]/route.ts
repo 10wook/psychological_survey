@@ -17,7 +17,7 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
           scaleVersion: {
             select: {
               estimatedSeconds: true,
-              scale: { select: { name: true, description: true } },
+              scale: { select: { name: true, description: true, instructions: true } },
               _count: { select: { questions: { where: { isActive: true } } } },
             },
           },
@@ -65,11 +65,13 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
           name: ss.scaleVersion.scale.name,
           description: ss.scaleVersion.scale.description,
           displayLabel: ss.displayLabel,
+          instructions: ss.scaleVersion.scale.instructions,
         }),
         intro: scaleDisplayParts(ss.displayModes, {
           name: ss.scaleVersion.scale.name,
           description: ss.scaleVersion.scale.description,
           displayLabel: ss.displayLabel,
+          instructions: ss.scaleVersion.scale.instructions,
         }).map((p) => p.text),
         questionCount: ss.scaleVersion._count.questions,
       })),

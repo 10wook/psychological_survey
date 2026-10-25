@@ -118,7 +118,10 @@ model ConsentRecord {
 model Scale {
   id          String   @id @default(cuid())
   name        String
+  // 연구자용 설명 (이 척도가 무엇을 측정하는지)
   description String?
+  // 참여자에게 노출되는 안내문 (예: "최근 2주 이내에 나에게 가장 가까운 것을 고르세요") (이슈 #36)
+  instructions String?
   sourceTitle String?
   sourceAuthor String?
   sourceYear  Int?
@@ -270,7 +273,8 @@ model Survey {
   instructions        String?
   status              SurveyStatus @default(DRAFT)
   publicId            String       @unique
-  requireLogin        Boolean      @default(true)
+  // 비회원 응답 가능이 기본값 (이슈 #35)
+  requireLogin        Boolean      @default(false)
   // 비회원 응답 시 연락처 수집 방식 (이슈 #11)
   guestContactMode    GuestContactMode @default(OPTIONAL)
   allowResume         Boolean      @default(true)
@@ -313,6 +317,7 @@ enum ScaleDisplayMode {
   NAME // 척도 제목(Scale.name) 노출
   DESCRIPTION // 척도 설명(Scale.description) 노출
   CUSTOM // 직접 입력한 라벨(displayLabel) 노출
+  INSTRUCTIONS // 척도 안내문(Scale.instructions) 노출 (이슈 #36)
 }
 
 // 척도 위치 고정. FIRST/LAST 는 scaleOrderMode=SHUFFLE 이어도 해당 위치에 고정.

@@ -13,6 +13,7 @@ import {
   Field,
   Input,
   Select,
+  Textarea,
 } from "@/components/ui";
 
 const SCALE_TYPE_LABEL: Record<ScaleType, string> = {
@@ -165,7 +166,8 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
             <h1 className="text-xl font-bold text-slate-900">{scale.name}</h1>
             {!scale.isActive && <Badge value="INACTIVE" />}
           </div>
-          <p className="text-xs text-slate-500">{scale.description}</p>
+          {/* 설명 전문이 줄바꿈 포함 그대로 보이도록 (이슈 #34) */}
+          <p className="whitespace-pre-line text-xs text-slate-500">{scale.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={cloneScale}>
@@ -293,21 +295,44 @@ function ScaleMetaEditor({
   setError: (m: string | null) => void;
   flash: (m: string) => void;
 }) {
-  const [name, setName] = useState(scale.name);
-  const [description, setDescription] = useState(scale.description ?? "");
+  const initial = useCallback(
+    () => ({
+      name: scale.name,
+      description: scale.description ?? "",
+      instructions: scale.instructions ?? "",
+      sourceTitle: scale.sourceTitle ?? "",
+      sourceAuthor: scale.sourceAuthor ?? "",
+      sourceYear: scale.sourceYear != null ? String(scale.sourceYear) : "",
+      sourceUrl: scale.sourceUrl ?? "",
+      licenseNote: scale.licenseNote ?? "",
+    }),
+    [scale],
+  );
+  const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setName(scale.name);
-    setDescription(scale.description ?? "");
-  }, [scale]);
+    setForm(initial());
+  }, [initial]);
+
+  function update<K extends keyof ReturnType<typeof initial>>(key: K, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial());
 
   async function save() {
     setSaving(true);
     setError(null);
     const res = await api.patch<{ scale: ScaleDTO }>(`/api/admin/scales/${scale.id}`, {
-      name: name.trim(),
-      description: description.trim() || undefined,
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      instructions: form.instructions.trim() || undefined,
+      sourceTitle: form.sourceTitle.trim() || undefined,
+      sourceAuthor: form.sourceAuthor.trim() || undefined,
+      sourceYear: form.sourceYear.trim() ? Number(form.sourceYear) : undefined,
+      sourceUrl: form.sourceUrl.trim(),
+      licenseNote: form.licenseNote.trim() || undefined,
     });
     setSaving(false);
     if (!res.ok) {
@@ -322,17 +347,61 @@ function ScaleMetaEditor({
     <Card className="space-y-3 p-4">
       <h2 className="text-sm font-semibold text-slate-800">척도 정보</h2>
       <Field label="척도명">
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
+        <Input value={form.name} onChange={(e) => update("name", e.target.value)} />
       </Field>
-      <Field label="설명">
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+      {/* 설명 전문 확인·수정이 가능하도록 여러 줄 입력 (이슈 #34) */}
+      <Field label="설명" hint="연구자용 설명입니다. 이 척도가 무엇을 측정하는지 적어 두세요.">
+        <Textarea
+          rows={4}
+          value={form.description}
+          onChange={(e) => update("description", e.target.value)}
+        />
       </Field>
+      {/* 참여자에게 노출되는 안내문 (이슈 #36) */}
+      <Field
+        label="안내문 (참여자에게 노출)"
+        hint='예: "최근 2주 이내에 나에게 가장 가까운 것을 고르세요." 설문에서 척도 소개로 노출할 수 있습니다.'
+      >
+        <Textarea
+          rows={3}
+          value={form.instructions}
+          onChange={(e) => update("instructions", e.target.value)}
+        />
+      </Field>
+
+      {/* 출처 확인·수정 (이슈 #34) */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 p-3">
+        <legend className="px-1 text-xs font-medium text-slate-500">출처 · 참고문헌</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="출처 제목">
+            <Input value={form.sourceTitle} onChange={(e) => update("sourceTitle", e.target.value)} />
+          </Field>
+          <Field label="저자">
+            <Input value={form.sourceAuthor} onChange={(e) => update("sourceAuthor", e.target.value)} />
+          </Field>
+          <Field label="발행 연도">
+            <Input
+              type="number"
+              value={form.sourceYear}
+              onChange={(e) => update("sourceYear", e.target.value)}
+            />
+          </Field>
+          <Field label="URL">
+            <Input
+              type="url"
+              placeholder="https://..."
+              value={form.sourceUrl}
+              onChange={(e) => update("sourceUrl", e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="라이선스 메모">
+          <Input value={form.licenseNote} onChange={(e) => update("licenseNote", e.target.value)} />
+        </Field>
+      </fieldset>
+
       <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={save}
-          disabled={saving || !name.trim() || (name === scale.name && description === (scale.description ?? ""))}
-        >
+        <Button size="sm" onClick={save} disabled={saving || !form.name.trim() || !dirty}>
           {saving ? "저장 중..." : "정보 저장"}
         </Button>
       </div>

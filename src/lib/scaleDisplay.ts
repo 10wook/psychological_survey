@@ -4,9 +4,11 @@ export type ScaleDisplayArgs = {
   name: string;
   description?: string | null;
   displayLabel?: string | null;
+  instructions?: string | null;
 };
 
-const MODE_ORDER: ScaleDisplayMode[] = ["NAME", "DESCRIPTION", "CUSTOM"];
+// 안내문은 제목·설명·직접 입력보다 아래(마지막)에 제시한다 (이슈 #36)
+const MODE_ORDER: ScaleDisplayMode[] = ["NAME", "DESCRIPTION", "CUSTOM", "INSTRUCTIONS"];
 
 /** displayModes 배열을 정규화한다. 비어 있으면 NAME 으로 폴백. */
 export function normalizeDisplayModes(
@@ -21,6 +23,7 @@ export function normalizeDisplayModes(
  * - NAME: 척도 제목
  * - DESCRIPTION: 척도 설명(없으면 생략)
  * - CUSTOM: 직접 입력 라벨(없으면 생략)
+ * - INSTRUCTIONS: 척도 안내문(없으면 생략, 항상 마지막)
  */
 export function scaleDisplayParts(
   modes: ScaleDisplayMode[] | null | undefined,
@@ -35,6 +38,9 @@ export function scaleDisplayParts(
       if (text) parts.push({ mode, text });
     } else if (mode === "CUSTOM") {
       const text = args.displayLabel?.trim();
+      if (text) parts.push({ mode, text });
+    } else if (mode === "INSTRUCTIONS") {
+      const text = args.instructions?.trim();
       if (text) parts.push({ mode, text });
     }
   }

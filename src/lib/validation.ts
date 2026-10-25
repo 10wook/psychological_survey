@@ -72,6 +72,8 @@ export const scaleTypeEnum = z.enum(["LIKERT", "SINGLE", "MULTIPLE", "TEXT", "MI
 export const createScaleSchema = z.object({
   name: z.string().min(1, "척도명을 입력하세요."),
   description: z.string().optional(),
+  // 참여자에게 노출되는 안내문 (이슈 #36)
+  instructions: z.string().optional(),
   sourceTitle: z.string().optional(),
   sourceAuthor: z.string().optional(),
   sourceYear: z.number().int().optional(),
@@ -87,6 +89,7 @@ export const createScaleSchema = z.object({
 export const updateScaleSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  instructions: z.string().optional(),
   sourceTitle: z.string().optional(),
   sourceAuthor: z.string().optional(),
   sourceYear: z.number().int().optional(),
@@ -161,7 +164,7 @@ export const bulkQuestionSchema = z.object({
 });
 
 // --- 설문 --------------------------------------------------------------
-export const scaleDisplayModeEnum = z.enum(["NAME", "DESCRIPTION", "CUSTOM"]);
+export const scaleDisplayModeEnum = z.enum(["NAME", "DESCRIPTION", "CUSTOM", "INSTRUCTIONS"]);
 
 export const questionOrderModeEnum = z.enum(["SCALE_GROUPED", "SHUFFLE_ALL"]);
 export const scaleOrderModeEnum = z.enum(["FIXED", "SHUFFLE"]);
@@ -209,7 +212,8 @@ export const createSurveySchema = z.object({
   title: z.string().min(1, "설문 제목을 입력하세요."),
   description: z.string().optional(),
   instructions: z.string().optional(),
-  requireLogin: z.boolean().default(true),
+  // 비회원 응답 가능이 기본값 (이슈 #35)
+  requireLogin: z.boolean().default(false),
   guestContactMode: guestContactModeEnum.default("OPTIONAL"),
   allowResume: z.boolean().default(true),
   allowDuplicate: z.boolean().default(false),

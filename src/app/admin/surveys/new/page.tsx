@@ -6,7 +6,7 @@ import { api } from "@/lib/client";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { normalizeDisplayModes, scaleDisplayParts } from "@/lib/scaleDisplay";
 
-type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM";
+type ScaleDisplayMode = "NAME" | "DESCRIPTION" | "CUSTOM" | "INSTRUCTIONS";
 type QuestionOrderMode = "SCALE_GROUPED" | "SHUFFLE_ALL";
 type ScaleOrderMode = "FIXED" | "SHUFFLE";
 type ScalePinPosition = "NONE" | "FIRST" | "LAST";
@@ -30,11 +30,13 @@ interface AvailableVersion {
   id: string;
   versionNumber: number;
   status: string;
-  scale: { name: string; description: string | null };
+  scale: { name: string; description: string | null; instructions: string | null };
   _count: { questions: number };
 }
 
+// 안내문이 기본 선택값, 최상단 배치 (이슈 #36)
 const DISPLAY_OPTIONS: Array<{ mode: ScaleDisplayMode; label: string }> = [
+  { mode: "INSTRUCTIONS", label: "안내문" },
   { mode: "NAME", label: "척도 제목" },
   { mode: "DESCRIPTION", label: "척도 설명" },
   { mode: "CUSTOM", label: "직접 입력 (블라인드)" },
@@ -47,7 +49,8 @@ export default function NewSurveyPage() {
     title: "",
     description: "",
     instructions: "",
-    requireLogin: true,
+    // 비회원 응답 가능이 기본값 (이슈 #35)
+    requireLogin: false,
     guestContactMode: "OPTIONAL" as GuestContactMode,
     allowDuplicate: false,
     showResult: true,
@@ -63,7 +66,8 @@ export default function NewSurveyPage() {
   function configOf(id: string): ScaleConfig {
     return (
       scaleConfig[id] ?? {
-        displayModes: ["NAME"],
+        // 안내문이 디폴트 (이슈 #36)
+        displayModes: ["INSTRUCTIONS"],
         displayLabel: "",
         shuffleQuestions: false,
         includeInGlobalShuffle: true,
@@ -281,6 +285,7 @@ export default function NewSurveyPage() {
                       name: v.scale.name,
                       description: v.scale.description,
                       displayLabel: cfg.displayLabel,
+                      instructions: v.scale.instructions,
                     });
                     return (
                       <li key={id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -342,6 +347,12 @@ export default function NewSurveyPage() {
                             </div>
                           </div>
                         </div>
+                        {cfg.displayModes.includes("INSTRUCTIONS") && !v.scale.instructions?.trim() && (
+                          <p className="mt-2 text-xs text-amber-600">
+                            이 척도에는 안내문이 없습니다. 척도 편집에서 안내문을 입력하거나 다른 소개 방식을
+                            선택하세요. (안내문이 비어 있으면 척도 제목이 대신 표시됩니다)
+                          </p>
+                        )}
                         {cfg.displayModes.includes("CUSTOM") && (
                           <Textarea
                             className="mt-2"
@@ -353,6 +364,7 @@ export default function NewSurveyPage() {
                         )}
                         {(cfg.displayModes.includes("NAME") ||
                           cfg.displayModes.includes("DESCRIPTION") ||
+                          (cfg.displayModes.includes("INSTRUCTIONS") && v.scale.instructions?.trim()) ||
                           (cfg.displayModes.includes("CUSTOM") && cfg.displayLabel.trim())) && (
                           <div className="mt-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2">
                             <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">

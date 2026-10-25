@@ -38,4 +38,22 @@ describe("scaleDisplay", () => {
       { mode: "CUSTOM", text: "파트 A\n아래 문항에 답하세요." },
     ]);
   });
+
+  it("안내문은 다른 소개 뒤(아래)에 제시된다 (이슈 #36)", () => {
+    const parts = scaleDisplayParts(["INSTRUCTIONS", "NAME"], {
+      name: "PHQ-9",
+      instructions: "최근 2주 이내에 나에게 가장 가까운 것을 고르세요.",
+    });
+    expect(parts.map((p) => p.mode)).toEqual(["NAME", "INSTRUCTIONS"]);
+    expect(parts[1]!.text).toBe("최근 2주 이내에 나에게 가장 가까운 것을 고르세요.");
+  });
+
+  it("안내문만 선택 시 안내문만, 안내문이 비면 NAME 폴백 (이슈 #36)", () => {
+    expect(
+      scaleDisplayParts(["INSTRUCTIONS"], { name: "PHQ-9", instructions: "안내" }),
+    ).toEqual([{ mode: "INSTRUCTIONS", text: "안내" }]);
+    expect(
+      scaleDisplayParts(["INSTRUCTIONS"], { name: "PHQ-9", instructions: "  " }),
+    ).toEqual([{ mode: "NAME", text: "PHQ-9" }]);
+  });
 });

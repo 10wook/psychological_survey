@@ -234,9 +234,12 @@ export function RespondForm({ responseId }: { responseId: string }) {
   };
 
   // 제목(첫 파트)은 볼드·큰 글씨, 설명(나머지 파트)은 줄바꿈해 노출 (이슈 #16)
+  // 안내문(INSTRUCTIONS)은 제목으로 쓰지 않고 항상 본문 스타일로 노출 (이슈 #36)
   const parts = scale.scaleParts ?? [];
-  const scaleTitle = parts[0]?.text ?? scale.scaleName ?? "설문 문항";
-  const scaleDescriptions = parts.slice(1).map((p) => p.text);
+  const titleIndex = parts.findIndex((p) => p.mode !== "INSTRUCTIONS");
+  const scaleTitle =
+    titleIndex >= 0 ? parts[titleIndex]!.text : parts.length > 0 ? null : (scale.scaleName ?? "설문 문항");
+  const scaleDescriptions = parts.filter((_, i) => i !== titleIndex).map((p) => p.text);
 
   // 리커트 응답 기준 범례 (이슈 #29): 현재 척도의 LIKERT 선택지에서 번호별 정의 수집.
   // 라벨이 전부 숫자뿐이면 범례를 생략한다.
@@ -258,7 +261,9 @@ export function RespondForm({ responseId }: { responseId: string }) {
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="whitespace-pre-line text-lg font-bold text-slate-900">{scaleTitle}</h1>
+              {scaleTitle && (
+                <h1 className="whitespace-pre-line text-lg font-bold text-slate-900">{scaleTitle}</h1>
+              )}
               {scaleDescriptions.map((text, i) => (
                 <p key={i} className="mt-0.5 whitespace-pre-line text-sm text-slate-600">
                   {text}

@@ -49,6 +49,7 @@ export const POST = handler(async (req: NextRequest) => {
     data: {
       name: input.name,
       description: input.description,
+      instructions: input.instructions,
       sourceTitle: input.sourceTitle,
       sourceAuthor: input.sourceAuthor,
       sourceYear: input.sourceYear,

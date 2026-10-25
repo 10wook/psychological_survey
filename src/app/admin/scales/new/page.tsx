@@ -22,6 +22,7 @@ export default function NewScalePage() {
   const [form, setForm] = useState({
     name: "",
     description: "",
+    instructions: "",
     sourceTitle: "",
     sourceAuthor: "",
     scaleType: "LIKERT" as ScaleType,
@@ -90,6 +91,7 @@ export default function NewScalePage() {
     const res = await api.post<{ scale: { id: string } }>("/api/admin/scales", {
       name: form.name,
       description: form.description || undefined,
+      instructions: form.instructions || undefined,
       sourceTitle: form.sourceTitle || undefined,
       sourceAuthor: form.sourceAuthor || undefined,
       scaleType: form.scaleType,
@@ -142,9 +144,16 @@ export default function NewScalePage() {
               </span>
             </label>
           )}
-          <Field label="설명" htmlFor="description">
+          <Field label="설명" htmlFor="description"
+            hint="연구자용 설명입니다. 이 척도가 무엇을 측정하는지 적어 두세요.">
             <Textarea id="description" rows={3} value={form.description}
               onChange={(e) => update("description", e.target.value)} />
+          </Field>
+          {/* 참여자에게 노출되는 안내문 (이슈 #36) */}
+          <Field label="안내문 (참여자에게 노출)" htmlFor="instructions"
+            hint='예: "최근 2주 이내에 나에게 가장 가까운 것을 고르세요." 설문에서 척도 소개로 노출됩니다.'>
+            <Textarea id="instructions" rows={3} value={form.instructions}
+              onChange={(e) => update("instructions", e.target.value)} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="출처 제목" htmlFor="sourceTitle">

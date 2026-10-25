@@ -54,6 +54,14 @@ export interface ScaleDTO {
   id: string;
   name: string;
   description: string | null;
+  // 참여자에게 노출되는 안내문 (이슈 #36)
+  instructions: string | null;
+  // 출처 정보 (이슈 #34)
+  sourceTitle: string | null;
+  sourceAuthor: string | null;
+  sourceYear: number | null;
+  sourceUrl: string | null;
+  licenseNote: string | null;
   isActive: boolean;
   versions: ScaleVersionDTO[];
 }

@@ -52,6 +52,7 @@ export const GET = handler(async (_req: NextRequest, { params }: Params) => {
       name: ss.scaleVersion.scale.name,
       description: ss.scaleVersion.scale.description,
       displayLabel: ss.displayLabel,
+      instructions: ss.scaleVersion.scale.instructions,
     };
     scaleLabelById.set(ss.id, scaleDisplayLabel(ss.displayModes, displayArgs));
     scalePartsById.set(ss.id, scaleDisplayParts(ss.displayModes, displayArgs));

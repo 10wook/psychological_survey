@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import { copyApaToClipboard, formatApaCitation } from "@/lib/apaCitation";
 import type { ScaleDTO, ScaleVersionDTO, QuestionType, ScaleType } from "@/lib/types";
 import {
   Alert,
@@ -277,9 +278,73 @@ export function ScaleEditor({ scaleId }: { scaleId: string }) {
               )}
             </div>
           </Card>
+
+          {/* 아카이브 공유 (이슈 #39): 잠긴 버전만 */}
+          {version.status === "LOCKED" && (
+            <ShareArchivePanel
+              scale={scale}
+              onChanged={load}
+              setError={setError}
+              flash={flash}
+            />
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function ShareArchivePanel({
+  scale,
+  onChanged,
+  setError,
+  flash,
+}: {
+  scale: ScaleDTO;
+  onChanged: () => Promise<void>;
+  setError: (m: string | null) => void;
+  flash: (m: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function toggleShare() {
+    const next = !scale.isShared;
+    if (
+      next &&
+      !window.confirm(
+        "이 척도를 아카이브에 공유할까요? 다른 이용자가 내용을 보고 자신의 척도로 복사할 수 있습니다.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await api.post<{ scale: ScaleDTO }>(`/api/admin/scales/${scale.id}/share`, {
+      shared: next,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error.message);
+      return;
+    }
+    await onChanged();
+    flash(next ? "아카이브에 공유했습니다." : "아카이브 공유를 해제했습니다.");
+  }
+
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div>
+        <p className="text-sm font-medium text-slate-800">아카이브 공유</p>
+        <p className="text-xs text-slate-500">
+          {scale.isShared
+            ? "다른 이용자가 아카이브에서 이 척도를 가져와 독립 복사본으로 저장할 수 있습니다."
+            : "잠긴 척도를 아카이브(공유 라이브러리)에 등록합니다."}
+        </p>
+      </div>
+      <Button size="sm" variant={scale.isShared ? "secondary" : "primary"} disabled={busy} onClick={toggleShare}>
+        {busy ? "처리 중..." : scale.isShared ? "공유 해제" : "공유하기"}
+      </Button>
+    </Card>
   );
 }
 
@@ -304,12 +369,16 @@ function ScaleMetaEditor({
       sourceAuthor: scale.sourceAuthor ?? "",
       sourceYear: scale.sourceYear != null ? String(scale.sourceYear) : "",
       sourceUrl: scale.sourceUrl ?? "",
+      sourceJournal: scale.sourceJournal ?? "",
+      sourceVolume: scale.sourceVolume ?? "",
+      sourceIssue: scale.sourceIssue ?? "",
       licenseNote: scale.licenseNote ?? "",
     }),
     [scale],
   );
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   useEffect(() => {
     setForm(initial());
@@ -321,6 +390,16 @@ function ScaleMetaEditor({
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial());
 
+  const apaPreview = formatApaCitation({
+    sourceTitle: form.sourceTitle,
+    sourceAuthor: form.sourceAuthor,
+    sourceYear: form.sourceYear.trim() ? Number(form.sourceYear) : null,
+    sourceUrl: form.sourceUrl,
+    sourceJournal: form.sourceJournal,
+    sourceVolume: form.sourceVolume,
+    sourceIssue: form.sourceIssue,
+  });
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -330,8 +409,11 @@ function ScaleMetaEditor({
       instructions: form.instructions.trim() || undefined,
       sourceTitle: form.sourceTitle.trim() || undefined,
       sourceAuthor: form.sourceAuthor.trim() || undefined,
-      sourceYear: form.sourceYear.trim() ? Number(form.sourceYear) : undefined,
+      sourceYear: form.sourceYear.trim() ? Number(form.sourceYear) : null,
       sourceUrl: form.sourceUrl.trim(),
+      sourceJournal: form.sourceJournal.trim() || undefined,
+      sourceVolume: form.sourceVolume.trim() || undefined,
+      sourceIssue: form.sourceIssue.trim() || undefined,
       licenseNote: form.licenseNote.trim() || undefined,
     });
     setSaving(false);
@@ -341,6 +423,19 @@ function ScaleMetaEditor({
     }
     await onSaved();
     flash("척도 정보를 저장했습니다.");
+  }
+
+  async function copyApa() {
+    setCopying(true);
+    setError(null);
+    try {
+      await copyApaToClipboard(apaPreview);
+      flash("APA 출처를 클립보드에 복사했습니다.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "출처 복사에 실패했습니다.");
+    } finally {
+      setCopying(false);
+    }
   }
 
   return (
@@ -369,14 +464,14 @@ function ScaleMetaEditor({
         />
       </Field>
 
-      {/* 출처 확인·수정 (이슈 #34) */}
+      {/* 출처 확인·수정 (이슈 #34 / #38) */}
       <fieldset className="space-y-3 rounded-lg border border-slate-200 p-3">
         <legend className="px-1 text-xs font-medium text-slate-500">출처 · 참고문헌</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="출처 제목">
             <Input value={form.sourceTitle} onChange={(e) => update("sourceTitle", e.target.value)} />
           </Field>
-          <Field label="저자">
+          <Field label="저자" hint="여러 명은 쉼표로 구분 (3명 이상이면 APA 복사 시 '외' / et al.)">
             <Input value={form.sourceAuthor} onChange={(e) => update("sourceAuthor", e.target.value)} />
           </Field>
           <Field label="발행 연도">
@@ -394,10 +489,38 @@ function ScaleMetaEditor({
               onChange={(e) => update("sourceUrl", e.target.value)}
             />
           </Field>
+          <Field label="저널명">
+            <Input
+              value={form.sourceJournal}
+              onChange={(e) => update("sourceJournal", e.target.value)}
+            />
+          </Field>
+          <Field label="권 (Volume)">
+            <Input value={form.sourceVolume} onChange={(e) => update("sourceVolume", e.target.value)} />
+          </Field>
+          <Field label="호 (Issue)">
+            <Input value={form.sourceIssue} onChange={(e) => update("sourceIssue", e.target.value)} />
+          </Field>
         </div>
         <Field label="라이선스 메모">
           <Input value={form.licenseNote} onChange={(e) => update("licenseNote", e.target.value)} />
         </Field>
+        {!apaPreview.empty && (
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <span className="font-medium text-slate-500">APA 미리보기: </span>
+            <span dangerouslySetInnerHTML={{ __html: apaPreview.html }} />
+          </div>
+        )}
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={copyApa}
+            disabled={copying || apaPreview.empty}
+          >
+            {copying ? "복사 중..." : "APA 출처 복사"}
+          </Button>
+        </div>
       </fieldset>
 
       <div className="flex justify-end">

@@ -78,6 +78,9 @@ export const createScaleSchema = z.object({
   sourceAuthor: z.string().optional(),
   sourceYear: z.number().int().optional(),
   sourceUrl: z.string().url().optional().or(z.literal("")),
+  sourceJournal: z.string().optional(),
+  sourceVolume: z.string().optional(),
+  sourceIssue: z.string().optional(),
   licenseNote: z.string().optional(),
   scaleType: scaleTypeEnum.default("LIKERT"),
   minScore: z.number().int().default(1),
@@ -92,9 +95,16 @@ export const updateScaleSchema = z.object({
   instructions: z.string().optional(),
   sourceTitle: z.string().optional(),
   sourceAuthor: z.string().optional(),
-  sourceYear: z.number().int().optional(),
+  sourceYear: z.number().int().optional().nullable(),
   sourceUrl: z.string().url().optional().or(z.literal("")),
+  sourceJournal: z.string().optional(),
+  sourceVolume: z.string().optional(),
+  sourceIssue: z.string().optional(),
   licenseNote: z.string().optional(),
+});
+
+export const shareScaleSchema = z.object({
+  shared: z.boolean(),
 });
 
 // --- 척도 버전 ----------------------------------------------------------

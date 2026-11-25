@@ -26,11 +26,17 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
       data: {
         name: `${source.name} (복제본)`,
         description: source.description,
+        instructions: source.instructions,
         sourceTitle: source.sourceTitle,
         sourceAuthor: source.sourceAuthor,
         sourceYear: source.sourceYear,
         sourceUrl: source.sourceUrl,
+        sourceJournal: source.sourceJournal,
+        sourceVolume: source.sourceVolume,
+        sourceIssue: source.sourceIssue,
         licenseNote: source.licenseNote,
+        isShared: false,
+        sharedAt: null,
         createdById: user.id,
         versions: {
           create: {

@@ -54,6 +54,9 @@ export const POST = handler(async (req: NextRequest) => {
       sourceAuthor: input.sourceAuthor,
       sourceYear: input.sourceYear,
       sourceUrl: input.sourceUrl || null,
+      sourceJournal: input.sourceJournal,
+      sourceVolume: input.sourceVolume,
+      sourceIssue: input.sourceIssue,
       licenseNote: input.licenseNote,
       createdById: user.id,
       versions: {

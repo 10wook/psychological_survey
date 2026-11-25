@@ -56,12 +56,18 @@ export interface ScaleDTO {
   description: string | null;
   // 참여자에게 노출되는 안내문 (이슈 #36)
   instructions: string | null;
-  // 출처 정보 (이슈 #34)
+  // 출처 정보 (이슈 #34 / #38)
   sourceTitle: string | null;
   sourceAuthor: string | null;
   sourceYear: number | null;
   sourceUrl: string | null;
+  sourceJournal: string | null;
+  sourceVolume: string | null;
+  sourceIssue: string | null;
   licenseNote: string | null;
   isActive: boolean;
+  // 아카이브 공유 (이슈 #39)
+  isShared: boolean;
+  sharedAt: string | null;
   versions: ScaleVersionDTO[];
 }

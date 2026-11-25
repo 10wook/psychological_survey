@@ -126,8 +126,15 @@ model Scale {
   sourceAuthor String?
   sourceYear  Int?
   sourceUrl   String?
+  // APA 저널 출처 확장 (이슈 #38)
+  sourceJournal String?
+  sourceVolume  String?
+  sourceIssue   String?
   licenseNote String?
   isActive    Boolean  @default(true)
+  // 아카이브(공유 라이브러리) 공개 여부 (이슈 #39)
+  isShared    Boolean  @default(false)
+  sharedAt    DateTime?
   createdById String?
   createdBy   User?    @relation("ScaleCreator", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
@@ -136,6 +143,7 @@ model Scale {
   versions ScaleVersion[]
 
   @@index([isActive])
+  @@index([isShared])
 }
 
 enum ScaleVersionStatus {

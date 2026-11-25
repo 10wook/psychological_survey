@@ -6,6 +6,7 @@ const NAV = [
   { href: "/admin", label: "대시보드" },
   { href: "/admin/scales", label: "척도 관리" },
   { href: "/admin/surveys", label: "설문 관리" },
+  { href: "/admin/archive", label: "아카이브" },
 ];
 
 export default async function AdminLayout({

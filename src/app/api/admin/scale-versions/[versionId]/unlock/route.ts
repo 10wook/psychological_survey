@@ -28,9 +28,24 @@ export const POST = handler(async (req: NextRequest, { params }: Params) => {
     );
   }
 
-  const updated = await prisma.scaleVersion.update({
-    where: { id: versionId },
-    data: { status: "PUBLISHED", lockedAt: null },
+  const updated = await prisma.$transaction(async (tx) => {
+    const ver = await tx.scaleVersion.update({
+      where: { id: versionId },
+      data: { status: "PUBLISHED", lockedAt: null },
+    });
+
+    // 잠긴 버전이 더 없으면 아카이브 공유도 해제 (이슈 #39)
+    const stillLocked = await tx.scaleVersion.count({
+      where: { scaleId: version.scaleId, status: "LOCKED" },
+    });
+    if (stillLocked === 0) {
+      await tx.scale.updateMany({
+        where: { id: version.scaleId, isShared: true },
+        data: { isShared: false, sharedAt: null },
+      });
+    }
+
+    return ver;
   });
 
   await writeAudit({

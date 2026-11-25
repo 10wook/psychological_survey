@@ -154,3 +154,23 @@ export async function assertCanReadScaleForClone(user: SafeUser, scaleId: string
   }
   return scale;
 }
+
+/**
+ * 아카이브에서 가져오기(이슈 #39):
+ * - 본인/ADMIN 척도, 또는 isShared=true 인 공개 척도
+ */
+export async function assertCanImportScale(user: SafeUser, scaleId: string) {
+  const scale = await prisma.scale.findUnique({
+    where: { id: scaleId },
+    select: { id: true, createdById: true, isShared: true, isActive: true },
+  });
+  if (!scale) throw notFound("척도를 찾을 수 없습니다.");
+  if (isAdmin(user) || scale.createdById === user.id) return scale;
+  if (scale.isShared && scale.isActive) return scale;
+  throw forbidden("공유되지 않은 척도는 가져올 수 없습니다.");
+}
+
+/** 아카이브 상세 조회: 공유된 척도 또는 본인/ADMIN */
+export async function assertCanReadSharedScale(user: SafeUser, scaleId: string) {
+  return assertCanImportScale(user, scaleId);
+}
